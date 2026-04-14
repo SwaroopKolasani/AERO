@@ -1,5 +1,0 @@
-boto3>=1.34
-jsonschema>=4.21
-
-[dev]
-pytest>=8.1

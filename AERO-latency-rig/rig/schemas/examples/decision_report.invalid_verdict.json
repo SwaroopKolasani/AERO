@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "session_id": "ses-2025-001",
+  "verdict": "MAYBE",
+  "cause_bundle_sha256":  "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "completeness_sha256":  "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "closure_sha256":       "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "rig_self_sha256":      "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "git_commit": "a1b2c3d",
+  "timestamp": "2025-06-01T12:00:00Z"
+}

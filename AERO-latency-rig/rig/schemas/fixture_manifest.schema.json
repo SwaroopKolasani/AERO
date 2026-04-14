@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/fixture_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "fixture_semver",
+    "cpython_version",
+    "stdlib_modules",
+    "generator_version",
+    "generator_cmdline",
+    "seed",
+    "inputs",
+    "script_sha256",
+    "expected_outputs",
+    "failure_oracle"
+  ],
+  "properties": {
+    "schema_version":    { "type": "integer", "const": 1 },
+    "fixture_semver":    { "type": "string", "minLength": 1 },
+    "cpython_version":   { "type": "string", "minLength": 1 },
+    "stdlib_modules": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "generator_version": { "type": "string", "minLength": 1 },
+    "generator_cmdline": { "type": "string", "minLength": 1 },
+    "seed":              { "type": "string", "minLength": 1 },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size"],
+        "properties": {
+          "path":   { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size":   { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "script_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "expected_outputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "size"],
+        "properties": {
+          "path":   { "type": "string", "minLength": 1 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "size":   { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "failure_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_exit_code", "expected_stderr_substring_sha256"],
+      "properties": {
+        "expected_exit_code":               { "type": "integer" },
+        "expected_stderr_substring_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

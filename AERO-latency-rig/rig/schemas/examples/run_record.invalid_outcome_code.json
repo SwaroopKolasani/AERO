@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "run_identity": { "schema_version": 1 },
+  "outcome_code": "fail_network",
+  "wallclock_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "raw_artifacts": {
+    "stdout_sha256":  "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    "stderr_sha256":  "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    "wal_raw_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+  },
+  "completion_proof_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "outputs_audit_sha256":    "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "classifier_reason": "fail_network"
+}

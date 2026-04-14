@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/decision_report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "verdict",
+    "cause_bundle_sha256",
+    "completeness_sha256",
+    "closure_sha256",
+    "rig_self_sha256",
+    "git_commit",
+    "timestamp"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "session_id":     { "type": "string", "minLength": 1 },
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "GO",
+        "GO_WITH_NARROWING",
+        "INCONCLUSIVE",
+        "REDESIGN",
+        "STOP",
+        "INVALID",
+        "INCOMPLETE"
+      ]
+    },
+    "cause_bundle_sha256":  { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "completeness_sha256":  { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "closure_sha256":       { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "rig_self_sha256":      { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "git_commit":           { "type": "string", "minLength": 1 },
+    "timestamp":            { "type": "string", "minLength": 1 }
+  }
+}

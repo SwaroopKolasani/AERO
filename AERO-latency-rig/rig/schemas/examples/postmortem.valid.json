@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "dominant_failing_phase": "T_boot_launch",
+  "wal_terminal_state": "LAUNCH_CONFIRMED",
+  "transfer_mode": null,
+  "exit_classification": "exit_nonzero",
+  "invalidation_ref_if_any": null
+}

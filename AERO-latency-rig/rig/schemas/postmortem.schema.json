@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/postmortem.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dominant_failing_phase",
+    "wal_terminal_state",
+    "transfer_mode",
+    "exit_classification",
+    "invalidation_ref_if_any"
+  ],
+  "properties": {
+    "schema_version":         { "type": "integer", "const": 1 },
+    "dominant_failing_phase": { "type": "string", "minLength": 1 },
+    "wal_terminal_state":     { "type": "string", "minLength": 1 },
+    "transfer_mode":          { "type": ["string", "null"] },
+    "exit_classification":    { "type": "string", "minLength": 1 },
+    "invalidation_ref_if_any":{ "type": ["string", "null"] }
+  }
+}

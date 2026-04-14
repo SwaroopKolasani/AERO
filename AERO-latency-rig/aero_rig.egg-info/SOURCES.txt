@@ -1,0 +1,13 @@
+pyproject.toml
+aero_rig.egg-info/PKG-INFO
+aero_rig.egg-info/SOURCES.txt
+aero_rig.egg-info/dependency_links.txt
+aero_rig.egg-info/entry_points.txt
+aero_rig.egg-info/requires.txt
+aero_rig.egg-info/top_level.txt
+rig/__init__.py
+rig/cli.py
+rig/schemas/__init__.py
+tests/test_atomic.py
+tests/test_cli.py
+tests/test_schemas.py

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "fixture_semver": "1.0.0",
+  "cpython_version": "3.11.9",
+  "stdlib_modules": ["os"],
+  "generator_version": "1.0.0",
+  "generator_cmdline": "rig fixture regenerate --seed 0xAER0",
+  "inputs": [
+    {
+      "path": "input_00.bin",
+      "sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "size": 1024
+    }
+  ],
+  "script_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  "expected_outputs": [
+    {
+      "path": "output_00.bin",
+      "sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+      "size": 512
+    }
+  ],
+  "failure_oracle": {
+    "expected_exit_code": 1,
+    "expected_stderr_substring_sha256": "abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+  }
+}

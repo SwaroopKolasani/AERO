@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aero-rig"
+version = "0.1.0"
+# ADR-006 mandated 3.11; measurement environment ships 3.12.3.
+# Pin tracks the actual interpreter; update if the gate machine changes.
+# DEVIATION-B1: was ==3.11.*, changed to ==3.12.* to match container.
+requires-python = "==3.12.*"
+dependencies = [
+    # Exact pins belong in pinned/rig_env.lock (pip freeze output).
+    # Lower bounds here keep `pip install -e .` from resolving garbage.
+    "boto3>=1.34",
+    "jsonschema>=4.21",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.1",
+]
+
+[project.scripts]
+rig = "rig.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rig*"]

@@ -889,3 +889,111 @@ def release_lock(session_dir: Path) -> None:
         (session_dir / _LOCK_FILENAME).unlink()
     except FileNotFoundError:
         pass
+
+
+# =============================================================================
+# T1.4 -- state transition validator
+# =============================================================================
+
+# All valid session states (closed set).
+ALL_SESSION_STATES: frozenset[str] = frozenset({
+    "OPEN", "RUNNING", "FINALIZING", "CLOSED", "INCOMPLETE", "INVALID",
+})
+
+# States from which no transition is permitted.
+# CLOSED: architecture §12 — "no mutation of closed sessions."
+# INVALID, INCOMPLETE: both are preserved permanent records that the
+# architecture says are "published alongside valid ones" and never discarded
+# or reopened.  Making them immutable here enforces that semantics at the
+# validator boundary rather than relying on orchestrator discipline.
+IMMUTABLE_STATES: frozenset[str] = frozenset({"CLOSED", "INVALID", "INCOMPLETE"})
+
+# Legal transitions, hardcoded from §8 of the architecture.  Not configurable.
+#
+#   OPEN → RUNNING → FINALIZING → CLOSED
+#   {OPEN, RUNNING, FINALIZING} → INCOMPLETE
+#   RUNNING → INVALID
+#
+# CLOSED, INCOMPLETE, and INVALID have no outgoing edges; attempts from
+# those states raise ImmutableSessionError before anything is written.
+LEGAL_TRANSITIONS: frozenset[tuple[str, str]] = frozenset({
+    ("OPEN",       "RUNNING"),
+    ("RUNNING",    "FINALIZING"),
+    ("FINALIZING", "CLOSED"),
+    ("OPEN",       "INCOMPLETE"),
+    ("RUNNING",    "INCOMPLETE"),
+    ("FINALIZING", "INCOMPLETE"),
+    ("RUNNING",    "INVALID"),
+})
+
+SESSION_IMMUTABLE = "session_immutable"
+
+
+class ImmutableSessionError(Exception):
+    """Raised when a transition is attempted from a terminal session state.
+
+    No event is written.  The caller must not treat this as a recoverable
+    condition; it signals a bug in the orchestrator (calling validate_transition
+    after the session has already reached a terminal state).
+    """
+    error_code = SESSION_IMMUTABLE
+
+    def __init__(self, from_state: str) -> None:
+        super().__init__(
+            f"session is in terminal state {from_state!r}; no further transitions"
+        )
+        self.from_state = from_state
+
+
+def validate_transition(
+    events_path: Path,
+    from_state: str,
+    to_state: str,
+    prev_sha256: "str | None",
+    ts_monotonic_ns: int,
+    ts_wall: str,
+) -> "tuple[str, str]":
+    """Attempt a state transition; append the appropriate event; return result.
+
+    Returns (new_state, new_event_sha256).
+
+    Legal transition:
+        Appends a state_transition event.
+        Returns (to_state, sha256_of_that_event).
+
+    Illegal transition (from a non-terminal state):
+        Appends a state_transition_illegal event — persisted, never silently
+        dropped — and drives the session to INVALID.
+        Returns ("INVALID", sha256_of_that_event).
+
+    Attempt from an immutable terminal state (CLOSED, INVALID, INCOMPLETE):
+        Raises ImmutableSessionError.  Nothing is written.
+
+    The caller must supply prev_sha256 (the event_sha256 of the last event in
+    the log, or None for an empty log).  The returned sha256 is the correct
+    prev_sha256 value for the next call.
+    """
+    if from_state in IMMUTABLE_STATES:
+        raise ImmutableSessionError(from_state)
+
+    if (from_state, to_state) in LEGAL_TRANSITIONS:
+        new_sha = append_event(
+            events_path,
+            "state_transition",
+            {"from_state": from_state, "to_state": to_state},
+            prev_sha256,
+            ts_monotonic_ns,
+            ts_wall,
+        )
+        return to_state, new_sha
+
+    # Illegal transition from a non-terminal state: record the attempt.
+    new_sha = append_event(
+        events_path,
+        "state_transition_illegal",
+        {"from_state": from_state, "attempted_to_state": to_state},
+        prev_sha256,
+        ts_monotonic_ns,
+        ts_wall,
+    )
+    return "INVALID", new_sha

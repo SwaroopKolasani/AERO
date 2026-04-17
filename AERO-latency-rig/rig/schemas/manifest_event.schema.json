@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/manifest_event.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "event_id",
+    "ts_monotonic_ns",
+    "ts_wall",
+    "event_type",
+    "payload",
+    "prev_event_sha256",
+    "event_sha256"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ts_monotonic_ns": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ts_wall": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "session_opened",
+        "state_transition",
+        "artifact_created",
+        "artifact_verified",
+        "session_finalizing",
+        "session_closed",
+        "session_invalidated",
+        "session_incomplete",
+        "lock_adopted",
+        "state_transition_illegal"
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "prev_event_sha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "event_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

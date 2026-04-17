@@ -417,6 +417,7 @@ REC_DISK_ORPHAN               = "disk_orphan"
 _OPERATIONAL_FILENAMES: frozenset[str] = frozenset({
     "session_manifest.json",
     "manifest_events.jsonl",
+    "session.lock",
 })
 
 
@@ -706,3 +707,185 @@ def reconcile(session_dir: Path) -> ReconciliationReport:
         )
 
     return ReconciliationReport(ok=True)
+
+
+# =============================================================================
+# T1.3 -- single-writer lock
+# =============================================================================
+
+import os  # noqa: E402
+import socket  # noqa: E402
+import time  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+from rig.atomic import lock_create_exclusive as _lock_create_exclusive  # noqa: E402
+
+_LOCK_FILENAME = "session.lock"
+_PINNED_HASH_FILE = Path(__file__).parent.parent / "pinned" / "rig_self.sha256"
+
+# Named lock error codes.
+LOCK_SESSION_LOCKED = "session_locked"
+LOCK_STALE_NEEDS_ADOPTION = "stale_lock_needs_adoption"
+LOCK_CORRUPT = "corrupt_lock"
+
+
+class SessionLockedError(Exception):
+    """Raised when another live process holds the session lock."""
+    error_code = LOCK_SESSION_LOCKED
+
+    def __init__(self, pid: "int | None") -> None:
+        super().__init__(f"session locked by PID {pid}")
+        self.pid = pid
+
+
+class StaleLockNeedsAdoptionError(Exception):
+    """Raised when the lock is stale and --adopt-stale-lock was not passed."""
+    error_code = LOCK_STALE_NEEDS_ADOPTION
+
+    def __init__(self, pid: "int | None") -> None:
+        super().__init__(f"stale lock from PID {pid}; use --adopt-stale-lock to adopt")
+        self.pid = pid
+
+
+class CorruptLockError(Exception):
+    """Raised when session.lock exists but is not valid JSON.
+
+    A corrupt lock is not the same as a stale lock.  Silently treating it
+    as adoptable could break a live session that suffered a partial write.
+    The operator must inspect and remove the file manually.
+    """
+    error_code = LOCK_CORRUPT
+
+
+def _current_rig_sha256() -> str:
+    """Return this rig's identity hash: pinned file if populated, else source tree."""
+    if _PINNED_HASH_FILE.exists():
+        content = _PINNED_HASH_FILE.read_text(encoding="utf-8").strip()
+        if content:
+            return content
+    rig_root = Path(__file__).parent
+    h = hashlib.sha256()
+    for p in sorted(rig_root.rglob("*.py"), key=lambda x: str(x.resolve())):
+        h.update(p.read_bytes())
+    return h.hexdigest()
+
+
+def _hostname_hash() -> str:
+    return hashlib.sha256(socket.gethostname().encode()).hexdigest()
+
+
+def _pid_alive(pid: int) -> bool:
+    """Return True if pid refers to a running process.
+
+    PermissionError means the process exists but we cannot signal it —
+    treat as alive (conservative).  Only ProcessLookupError is definitive.
+    """
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _lock_is_stale(lock: dict, current_sha: str) -> bool:
+    """Return True if this lock may be taken over.
+
+    Stale when: the holding PID is dead, OR the rig_self_sha256 differs
+    from ours (a different rig version wrote the lock).
+    """
+    if not _pid_alive(lock.get("pid", -1)):
+        return True
+    if lock.get("rig_self_sha256", "") != current_sha:
+        return True
+    return False
+
+
+# _lock_create_exclusive is provided by rig.atomic.lock_create_exclusive (imported above).
+
+
+def _emit_lock_adopted(
+    events_path: Path,
+    lock_path: Path,
+    old_lock: "dict | None",
+) -> None:
+    """Append a lock_adopted event recording what we found in the stale lock."""
+    old_for_event: dict = {
+        "pid": (old_lock or {}).get("pid", 0),
+        "start_monotonic": (old_lock or {}).get("start_monotonic", 0),
+        "rig_self_sha256": (old_lock or {}).get("rig_self_sha256", ""),
+        "hostname_hash": (old_lock or {}).get("hostname_hash", ""),
+    }
+    events = read_events(events_path) if events_path.exists() else []
+    prev_sha = events[-1]["event_sha256"] if events else None
+    append_event(
+        events_path,
+        "lock_adopted",
+        {"lock_path": str(lock_path.resolve()), "old_lock": old_for_event},
+        prev_sha,
+        time.monotonic_ns(),
+        datetime.now(timezone.utc).isoformat(),
+    )
+
+
+def acquire_lock(session_dir: Path, adopt_stale: bool = False) -> dict:
+    """Acquire session.lock for the current process.
+
+    Returns the lock dict on success.
+    Raises SessionLockedError if a live lock is held by another process.
+    Raises StaleLockNeedsAdoptionError if lock is stale and adopt_stale=False.
+
+    When adopt_stale=True and lock is stale:
+        - appends a lock_adopted event to manifest_events.jsonl,
+        - then overwrites the lock.
+
+    Note: the TOCTOU window between "no lock exists" and exclusive creation
+    is closed by O_CREAT|O_EXCL in _lock_create_exclusive.  The window
+    between "stale lock found" and overwrite is not, but this is acceptable
+    for a developer CLI tool where two processes adopting the same stale lock
+    simultaneously is an extremely unlikely operational event.
+    """
+    lock_path = session_dir / _LOCK_FILENAME
+    events_path = session_dir / "manifest_events.jsonl"
+
+    current_sha = _current_rig_sha256()
+    new_lock: dict = {
+        "pid": os.getpid(),
+        "start_monotonic": time.monotonic_ns(),
+        "rig_self_sha256": current_sha,
+        "hostname_hash": _hostname_hash(),
+    }
+
+    if not lock_path.exists():
+        lock_bytes = json.dumps(new_lock, indent=2).encode()
+        if not _lock_create_exclusive(str(lock_path), lock_bytes):
+            # Another process won the tiny race between exists() and O_EXCL.
+            raise SessionLockedError(None)
+        return new_lock
+
+    # Lock file is present — read it.
+    try:
+        existing = json.loads(lock_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CorruptLockError(f"session.lock is not valid JSON") from exc
+    except OSError as exc:
+        raise CorruptLockError(f"session.lock is not readable") from exc
+
+    if not _lock_is_stale(existing, current_sha):
+        raise SessionLockedError(existing.get("pid"))
+
+    # Stale lock.
+    if not adopt_stale:
+        raise StaleLockNeedsAdoptionError(existing.get("pid"))
+
+    _emit_lock_adopted(events_path, lock_path, existing)
+    _atomic_write(str(lock_path), json.dumps(new_lock, indent=2))
+    return new_lock
+
+
+def release_lock(session_dir: Path) -> None:
+    """Delete session.lock.  No-op if already gone (crash recovery)."""
+    try:
+        (session_dir / _LOCK_FILENAME).unlink()
+    except FileNotFoundError:
+        pass

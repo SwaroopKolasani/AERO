@@ -124,3 +124,34 @@ def atomic_append_line(path: str, line: str) -> None:
         os.close(fd)
 
     _fsync_dir(parent)
+
+
+def lock_create_exclusive(path: str, data: bytes) -> bool:
+    """Create a lock file using O_CREAT|O_EXCL; return False if file exists.
+
+    This is the only write path in atomic.py that does not use the
+    tmp-then-rename protocol, because mutual-exclusion lock semantics
+    require a single atomic create-or-fail syscall.  tmp-then-rename would
+    let two concurrent processes each rename over the other's lock, with no
+    way to detect the collision.  O_CREAT|O_EXCL is the POSIX primitive
+    whose failure mode is well-defined: EEXIST.
+
+    Write discipline (short-write loop, fsync file, fsync parent) is
+    identical to the other functions in this module.
+
+    Returns True  if the file was created by this call.
+    Returns False if the file already existed (another writer holds it).
+    Raises OSError on any other write failure.
+    """
+    parent = os.path.dirname(os.path.abspath(path))
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+    except FileExistsError:
+        return False
+    try:
+        _write_all(fd, data)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _fsync_dir(parent)
+    return True

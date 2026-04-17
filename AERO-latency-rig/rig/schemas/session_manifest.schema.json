@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/session_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "rig_version",
+    "rig_self_sha256",
+    "git_commit",
+    "state",
+    "expected_artifacts",
+    "observed_artifacts",
+    "run_count_expected",
+    "run_count_observed",
+    "opened_at",
+    "last_event_id",
+    "closure_ref"
+  ],
+  "properties": {
+    "schema_version":    { "type": "integer", "const": 1 },
+    "session_id":        { "type": "string" },
+    "rig_version":       { "type": "string" },
+    "rig_self_sha256":   { "type": "string" },
+    "git_commit":        { "type": "string" },
+    "state": {
+      "type": "string",
+      "enum": ["OPEN", "RUNNING", "FINALIZING", "CLOSED", "INVALID", "INCOMPLETE"]
+    },
+    "expected_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["artifact_type", "path", "sha256", "artifact_schema_version"],
+        "properties": {
+          "artifact_type":          { "type": "string", "minLength": 1 },
+          "path":                   { "type": "string", "minLength": 1 },
+          "sha256":                 { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "artifact_schema_version":{ "type": "integer" }
+        }
+      }
+    },
+    "observed_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "sha256", "schema_version"],
+        "properties": {
+          "path":           { "type": "string", "minLength": 1 },
+          "sha256":         { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "schema_version": { "type": ["integer", "null"] }
+        }
+      }
+    },
+    "run_count_expected": { "type": "integer", "minimum": 0 },
+    "run_count_observed": { "type": "integer", "minimum": 0 },
+    "opened_at":          { "type": "string" },
+    "last_event_id":      { "type": "string" },
+    "closure_ref":        { "type": ["string", "null"] }
+  }
+}

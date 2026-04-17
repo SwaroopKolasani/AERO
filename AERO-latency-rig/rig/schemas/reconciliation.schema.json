@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/reconciliation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "ok", "error_code", "findings"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "ok":             { "type": "boolean" },
+    "error_code": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "string",
+          "enum": [
+            "manifest_missing",
+            "event_log_missing",
+            "event_log_truncated",
+            "event_chain_broken",
+            "manifest_events_mismatch",
+            "artifact_missing",
+            "artifact_hash_mismatch",
+            "disk_orphan"
+          ]
+        }
+      ]
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["error_code", "detail"],
+        "properties": {
+          "error_code": {
+            "type": "string",
+            "enum": [
+              "manifest_missing",
+              "event_log_missing",
+              "event_log_truncated",
+              "event_chain_broken",
+              "manifest_events_mismatch",
+              "artifact_missing",
+              "artifact_hash_mismatch",
+              "disk_orphan"
+            ]
+          },
+          "detail": { "type": "object" }
+        }
+      }
+    }
+  }
+}

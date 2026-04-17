@@ -358,3 +358,47 @@ def test_try_unlink_removes_existing_file(tmp_path):
 
 def test_fsync_dir_on_real_dir(tmp_path):
     _fsync_dir(str(tmp_path))  # must not raise
+
+
+# ── lock_create_exclusive ─────────────────────────────────────────────────────
+
+from rig.atomic import lock_create_exclusive
+
+
+def test_lock_create_exclusive_creates_file(tmp_path):
+    p = str(tmp_path / "session.lock")
+    result = lock_create_exclusive(p, b"lock data")
+    assert result is True
+    assert (tmp_path / "session.lock").exists()
+
+
+def test_lock_create_exclusive_content_correct(tmp_path):
+    p = str(tmp_path / "session.lock")
+    lock_create_exclusive(p, b"lock content")
+    assert (tmp_path / "session.lock").read_bytes() == b"lock content"
+
+
+def test_lock_create_exclusive_returns_false_when_file_exists(tmp_path):
+    p = str(tmp_path / "session.lock")
+    lock_create_exclusive(p, b"first")
+    result = lock_create_exclusive(p, b"second")
+    assert result is False
+
+
+def test_lock_create_exclusive_does_not_overwrite_existing(tmp_path):
+    p = str(tmp_path / "session.lock")
+    lock_create_exclusive(p, b"original")
+    lock_create_exclusive(p, b"overwrite attempt")
+    assert (tmp_path / "session.lock").read_bytes() == b"original"
+
+
+def test_lock_create_exclusive_nonexistent_parent_raises(tmp_path):
+    p = str(tmp_path / "no_such_dir" / "session.lock")
+    with pytest.raises(OSError):
+        lock_create_exclusive(p, b"data")
+
+
+def test_lock_create_exclusive_handles_short_data(tmp_path):
+    p = str(tmp_path / "session.lock")
+    lock_create_exclusive(p, b"")
+    assert (tmp_path / "session.lock").read_bytes() == b""

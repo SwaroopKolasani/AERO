@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/inventory_snapshot_raw.schema.json",
+  "description": "Minimal wrapper for one boto3 paginated response line in a *_raw.jsonl file. The ResponseMetadata envelope is required; all other fields are free-form (boto3 response shapes vary by API and version).",
+  "type": "object",
+  "required": ["ResponseMetadata"],
+  "properties": {
+    "ResponseMetadata": {
+      "type": "object",
+      "required": ["RequestId", "HTTPStatusCode"],
+      "properties": {
+        "RequestId":      { "type": "string" },
+        "HTTPStatusCode": { "type": "integer" }
+      }
+    }
+  }
+}

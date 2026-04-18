@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/timer_sanity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "monotonic_ns",
+    "continuous_ns",
+    "boottime_delta_ns",
+    "resolution_ns",
+    "clock_source",
+    "captured_at"
+  ],
+  "properties": {
+    "schema_version":    { "type": "integer", "const": 1 },
+    "monotonic_ns":      { "type": "integer", "minimum": 0 },
+    "continuous_ns":     { "type": "integer", "minimum": 0 },
+    "boottime_delta_ns": { "type": "integer" },
+    "resolution_ns":     { "type": "integer", "minimum": 0 },
+    "clock_source":      { "type": "string",  "minLength": 1 },
+    "captured_at":       { "type": "string",  "minLength": 1 }
+  }
+}

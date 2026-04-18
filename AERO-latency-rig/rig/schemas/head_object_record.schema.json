@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/head_object_record.schema.json",
+  "description": "One HeadObject anchor record in sweep/head_object_raw.jsonl. Fields are the task-specified six plus the full ResponseMetadata envelope required by the architecture for raw evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version_id",
+    "etag",
+    "content_length",
+    "last_modified",
+    "request_id",
+    "ts_monotonic",
+    "response_metadata"
+  ],
+  "properties": {
+    "version_id":        { "type": "string" },
+    "etag":              { "type": "string" },
+    "content_length":    { "type": "integer", "minimum": 0 },
+    "last_modified":     { "type": "string" },
+    "request_id":        { "type": "string" },
+    "ts_monotonic":      { "type": "integer", "minimum": 0 },
+    "response_metadata": { "type": "object" }
+  }
+}

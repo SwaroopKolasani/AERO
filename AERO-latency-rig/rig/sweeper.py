@@ -55,7 +55,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from rig.atomic import atomic_write
+from rig.atomic import atomic_append_line, atomic_write
 from rig.schemas import validate
 
 PHASE_PRE     = "inventory_pre"
@@ -274,3 +274,64 @@ def take_inventory(
     atomic_write(str(marker_path), b"1")
 
     return doc
+
+
+# =============================================================================
+# T3.3 -- Independent HeadObject anchor
+# =============================================================================
+#
+# record_head_object() is the sole entry point for this feature.
+#
+# Recorded fields (task spec):
+#     version_id, etag, content_length, last_modified, request_id, ts_monotonic
+# Plus the full ResponseMetadata envelope, which the architecture explicitly
+# requires for all raw artifacts ("full boto3 response envelopes").
+# No additional fields are added.
+#
+# Assumption (surfaced): dropping run_id/bucket/key means a reader cannot
+# attribute a JSONL entry to a specific run without external context.
+# If attribution is required by T5.3, add those fields at that point.
+#
+# Import isolation: this function only uses stdlib (json, time) plus
+# rig.atomic (already imported at module level).  It does not import from
+# rig.completion, and rig.completion must not import from this section.
+# The module-level imports of sweeper.py are the complete dependency
+# boundary: rig.atomic + rig.schemas only.
+
+def record_head_object(
+    s3_client: Any,
+    bucket: str,
+    key: str,
+    version_id: str,
+    output_path: Path,
+) -> dict[str, Any]:
+    """Call HeadObject out-of-band; append one line to head_object_raw.jsonl.
+
+    Records exactly the six task-specified fields plus the full
+    ResponseMetadata envelope (required by the architecture for raw evidence).
+
+    A VersionId mismatch between what the WAL recorded and what this call
+    observes is preserved in the record exactly as received.  T5.3 compares
+    the record against WAL evidence to detect and classify the mismatch.
+    T3.3 does not interpret or validate the values -- it records faithfully.
+
+    Returns the recorded dict so callers can inspect it without re-reading.
+    Raises any botocore ClientError from the HeadObject call.  No retry.
+    """
+    ts_mono = time.monotonic_ns()
+
+    response = s3_client.head_object(Bucket=bucket, Key=key, VersionId=version_id)
+
+    meta = response.get("ResponseMetadata", {})
+    record: dict[str, Any] = {
+        "version_id":        version_id,
+        "etag":              response.get("ETag", ""),
+        "content_length":    response.get("ContentLength", 0),
+        "last_modified":     _isoformat(response.get("LastModified")),
+        "request_id":        meta.get("RequestId", ""),
+        "ts_monotonic":      ts_mono,
+        "response_metadata": meta,
+    }
+
+    atomic_append_line(str(output_path), json.dumps(record, default=str, separators=(",", ":")))
+    return record

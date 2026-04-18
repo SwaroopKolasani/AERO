@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/host_baseline_diff.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "captured_at",
+    "current_fingerprint_sha256",
+    "prior_baseline_sha256",
+    "matches",
+    "changed_fields"
+  ],
+  "properties": {
+    "schema_version":             { "type": "integer", "const": 1 },
+    "captured_at":                { "type": "string",  "minLength": 1 },
+    "current_fingerprint_sha256": { "type": "string",  "pattern": "^[a-f0-9]{64}$" },
+    "prior_baseline_sha256": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        { "type": "null" }
+      ]
+    },
+    "matches":        { "type": "boolean" },
+    "changed_fields": { "type": "array", "items": { "type": "string" } }
+  }
+}

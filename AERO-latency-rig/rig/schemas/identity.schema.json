@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/identity.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "run_ordinal",
+    "profile",
+    "attempt_ordinal",
+    "cli_command_sha256",
+    "fixture_semver",
+    "rig_version"
+  ],
+  "properties": {
+    "schema_version":     { "type": "integer", "const": 1 },
+    "session_id":         { "type": "string",  "minLength": 1 },
+    "run_ordinal":        { "type": "integer",  "minimum": 1 },
+    "profile":            { "type": "string",  "minLength": 1 },
+    "attempt_ordinal":    { "type": "integer",  "minimum": 1 },
+    "cli_command_sha256": { "type": "string",  "pattern": "^[a-f0-9]{64}$" },
+    "fixture_semver":     { "type": "string",  "minLength": 1 },
+    "rig_version":        { "type": "string",  "minLength": 1 }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/host_fingerprint.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kernel",
+    "cpu_model",
+    "cpu_count",
+    "ram_bytes",
+    "power_profile",
+    "python_version",
+    "package_lock_sha256",
+    "nic_identity_class",
+    "hostname_hash"
+  ],
+  "properties": {
+    "kernel": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cpu_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cpu_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "ram_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "power_profile": {
+      "type": "string",
+      "minLength": 1
+    },
+    "python_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "package_lock_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "nic_identity_class": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hostname_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

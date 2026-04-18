@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/allocation_entry.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observation_ts_monotonic",
+    "source_of_record",
+    "resource_type",
+    "resource_id",
+    "correlation_key",
+    "originating_run_id",
+    "wal_event_ref",
+    "trust_level",
+    "prev_entry_sha256",
+    "entry_sha256"
+  ],
+  "properties": {
+    "schema_version":           { "type": "integer", "const": 1 },
+    "observation_ts_monotonic": { "type": "integer", "minimum": 0 },
+    "source_of_record": {
+      "type": "string",
+      "enum": [
+        "wal_event",
+        "boto3_launch_response",
+        "sidecar_observed",
+        "sweep_pre",
+        "sweep_post",
+        "sweep_delayed",
+        "head_object_independent"
+      ]
+    },
+    "resource_type": {
+      "type": "string",
+      "enum": ["ec2_instance", "s3_object_version"]
+    },
+    "resource_id":        { "type": "string", "minLength": 1 },
+    "correlation_key":    { "type": "string", "minLength": 1 },
+    "originating_run_id": { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "wal_event_ref":      { "oneOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }] },
+    "trust_level": {
+      "type": "string",
+      "enum": ["authoritative", "observed", "inferred"]
+    },
+    "prev_entry_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "entry_sha256":      { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  }
+}

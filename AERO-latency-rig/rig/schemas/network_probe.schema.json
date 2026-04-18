@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/network_probe.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "probe_url",
+    "probe_count",
+    "probe_payload_bytes",
+    "rtt_samples_ns",
+    "bytes_transferred_total",
+    "duration_ns",
+    "ec2_dry_run_latency_ns",
+    "floor_passed",
+    "floor_min_bytes_per_sec"
+  ],
+  "properties": {
+    "schema_version":           { "type": "integer", "const": 1 },
+    "probe_url":                { "type": "string",  "minLength": 1 },
+    "probe_count":              { "type": "integer", "minimum": 1 },
+    "probe_payload_bytes":      { "type": "integer", "minimum": 0 },
+    "rtt_samples_ns":           { "type": "array",   "items": { "type": "integer", "minimum": 0 } },
+    "bytes_transferred_total":  { "type": "integer", "minimum": 0 },
+    "duration_ns":              { "type": "integer", "minimum": 0 },
+    "ec2_dry_run_latency_ns": {
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "null" }
+      ]
+    },
+    "floor_passed":             { "type": "boolean" },
+    "floor_min_bytes_per_sec":  { "type": "integer", "minimum": 0 }
+  }
+}

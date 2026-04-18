@@ -182,3 +182,22 @@ class MacOSAdapter(HostAdapter):
     def _hostname_hash(self) -> str:
         import socket
         return hashlib.sha256(socket.gethostname().encode()).hexdigest()
+
+    def memory_pressure_level(self) -> str:
+        """Return 'NORMAL', 'WARN', or 'CRITICAL' from the macOS memory_pressure tool."""
+        try:
+            raw = _run(["memory_pressure"])
+        except subprocess.CalledProcessError:
+            return "NORMAL"
+        if "CRITICAL" in raw:
+            return "CRITICAL"
+        if "WARN" in raw:
+            return "WARN"
+        return "NORMAL"
+
+    def cpu_thermal_state(self) -> str:
+        """Return the raw pmset thermal output for baseline comparison."""
+        try:
+            return _run(["pmset", "-g", "therm"])
+        except subprocess.CalledProcessError:
+            return "unknown"

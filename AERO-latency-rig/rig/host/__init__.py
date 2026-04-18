@@ -97,6 +97,20 @@ class HostAdapter(ABC):
         """
 
 
+    @abstractmethod
+    def memory_pressure_level(self) -> str:
+        """Return memory pressure level: 'NORMAL', 'WARN', or 'CRITICAL'."""
+
+    @abstractmethod
+    def cpu_thermal_state(self) -> str:
+        """Return current CPU thermal/throttle state string.
+
+        Used to detect CPU governor changes between baseline and mid-session
+        checks.  Any change in the returned value triggers cpu_governor_changed.
+        """
+
+
+
 def compare_fingerprints(baseline: dict[str, Any],
                          current: dict[str, Any]) -> list[str]:
     """Return field names that differ between baseline and current.

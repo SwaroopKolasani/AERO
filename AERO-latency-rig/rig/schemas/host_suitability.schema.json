@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/host_suitability.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "pass", "checks"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "pass": { "type": "boolean" },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "power_not_ac",
+        "cpu_governor_changed",
+        "memory_pressure_high",
+        "disk_free_below_floor",
+        "sleep_lid_event",
+        "vpn_route_changed"
+      ],
+      "properties": {
+        "power_not_ac":          { "$ref": "#/$defs/check" },
+        "cpu_governor_changed":  { "$ref": "#/$defs/check" },
+        "memory_pressure_high":  { "$ref": "#/$defs/check" },
+        "disk_free_below_floor": { "$ref": "#/$defs/check" },
+        "sleep_lid_event":       { "$ref": "#/$defs/check" },
+        "vpn_route_changed":     { "$ref": "#/$defs/check" }
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pass", "causal_code"],
+      "properties": {
+        "pass": { "type": "boolean" },
+        "causal_code": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "string",
+              "enum": [
+                "power_not_ac",
+                "cpu_governor_changed",
+                "memory_pressure_high",
+                "disk_free_below_floor",
+                "sleep_lid_event",
+                "vpn_route_changed"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  }
+}

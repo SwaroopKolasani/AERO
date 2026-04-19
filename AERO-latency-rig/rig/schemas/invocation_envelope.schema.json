@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/invocation_envelope.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "run_id",
+    "argv",
+    "env",
+    "cwd",
+    "stdin_policy",
+    "ulimits",
+    "timeout_s",
+    "parent_pid",
+    "invocation_captured_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "argv": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "env": {
+      "type": "object",
+      "additionalProperties": false,
+      "maxProperties": 0
+    },
+    "cwd": {
+      "type": "string",
+      "minLength": 1
+    },
+    "stdin_policy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "ulimits": {
+      "type": "object"
+    },
+    "timeout_s": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "parent_pid": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "invocation_captured_at": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

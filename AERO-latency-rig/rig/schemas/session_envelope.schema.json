@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/session_envelope.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "rig_version",
+    "rig_self_sha256",
+    "git_commit",
+    "fixture_manifest_sha256",
+    "fixture_semver",
+    "profile_plan",
+    "prng_seed",
+    "region",
+    "account_id_hash",
+    "sts_credential_remaining_s",
+    "session_opened_at",
+    "run_schedule"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rig_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "rig_self_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "git_commit": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixture_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "fixture_semver": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile_plan": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "prng_seed": {
+      "type": "string",
+      "minLength": 1
+    },
+    "region": {
+      "type": "string",
+      "minLength": 1
+    },
+    "account_id_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sts_credential_remaining_s": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "session_opened_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_schedule": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "B1_local",
+          "B2_storage",
+          "B3a_cold_orch",
+          "B3b_compute",
+          "full",
+          "deliberate_failure"
+        ]
+      },
+      "minItems": 300,
+      "maxItems": 300
+    }
+  }
+}

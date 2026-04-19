@@ -335,3 +335,250 @@ def record_head_object(
 
     atomic_append_line(str(output_path), json.dumps(record, default=str, separators=(",", ":")))
     return record
+
+
+# =============================================================================
+# T3.4 -- Sweep correlation
+# =============================================================================
+#
+# Inputs:
+#   allocation_registry entries      (from T3.1)
+#   normalized inventory snapshots   (pre, post, delayed -- from T3.2)
+#
+# Known set: registry entries where trust_level is "authoritative" or
+#   "observed".  Inferred entries (sweep sources) do not count -- that would
+#   make the sweep self-validating.
+#
+# Classification rules (closed set, confirmed spec):
+#
+#   correlated    resource_id in known set
+#   pre_existing  resource_id in inventory_pre but NOT in known set
+#                 (existed before this session; not an orphan)
+#   orphan        resource_id appears in post or delayed, NOT in pre, NOT in
+#                 known set -- appeared during/after session with no creation
+#                 record. Any orphan → gate_failed=True.
+#   anomaly       resource_id in known set but in unexpected cloud state
+#                 (e.g. stopped EC2).  Triggers gate failure same as orphan.
+#   vanished      resource_id in known set but absent from all inventory
+#                 snapshots -- expected for short-lived instances; recorded
+#                 for completeness, not flagged as an error.
+#
+#   delete_markers_observed  S3 delete markers: recorded, never correlated or
+#                            orphaned.  Excluded from all classification logic.
+#
+# Gate failure (evaluator T7.3 reads this output and applies the rule):
+#   orphan_* categories → instant gate failure (zero tolerance, ADR-006)
+#   cloud_state_anomaly → reported in anomalies[], surfaced in cause_bundle,
+#                         NOT an automatic gate failure (ADR-005: never auto-acted on)
+# This correlator does not emit a gate_failed verdict -- that belongs to T7.3.
+#
+# The inputs dict records SHA-256 of each input artifact so the correlation
+# report is self-describing and auditable.
+
+import hashlib as _hashlib  # aliased to avoid shadowing the module-level name
+
+_TRUST_LEVELS_FOR_KNOWN_SET: frozenset[str] = frozenset({
+    "authoritative",
+    "observed",
+})
+
+# ADR-005 orphan categories.
+ORPHAN_VM_KNOWN                    = "orphan_vm_known"
+ORPHAN_S3_RECORDED_CURRENT_VERSION = "orphan_s3_recorded_current_version"
+
+# Anomaly type.
+CLOUD_STATE_ANOMALY = "cloud_state_anomaly"
+
+# EC2 states that a session-created instance is expected to be in.
+_EXPECTED_EC2_STATES: frozenset[str] = frozenset({"running", "pending"})
+
+
+def _file_sha256(path: Path) -> str:
+    h = _hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _known_resource_ids(registry_entries: list[dict[str, Any]]) -> set[str]:
+    """Return resource_ids from authoritative or observed registry entries only."""
+    return {
+        e["resource_id"]
+        for e in registry_entries
+        if e.get("trust_level") in _TRUST_LEVELS_FOR_KNOWN_SET
+    }
+
+
+def _s3_composite_id(bucket: str, key: str, version_id: str) -> str:
+    """Build S3 composite resource_id matching T3.1's allocation entry format."""
+    return f"{bucket}/{key}@{version_id}"
+
+
+def _partition_s3(snap: dict[str, Any], bucket: str) -> tuple[
+    list[dict[str, Any]],  # regular versions (is_delete_marker=False)
+    list[dict[str, Any]],  # delete markers
+]:
+    """Split S3 inventory entries into regular versions and delete markers."""
+    versions:       list[dict[str, Any]] = []
+    delete_markers: list[dict[str, Any]] = []
+    for ver in snap.get("s3_object_versions", []):
+        cid = _s3_composite_id(bucket, ver["key"], ver["version_id"])
+        entry = {"resource_id": cid, "key": ver["key"], "version_id": ver["version_id"]}
+        if ver.get("is_delete_marker", False):
+            delete_markers.append(entry)
+        else:
+            versions.append(entry)
+    return versions, delete_markers
+
+
+def _collect_by_phase(
+    pre: dict[str, Any],
+    post: dict[str, Any],
+    delayed: dict[str, Any],
+) -> tuple[
+    dict[str, str],   # ec2: instance_id -> last-seen state across post+delayed
+    dict[str, str],   # ec2: instance_id -> last-seen state in pre only
+    dict[str, str],   # s3: composite_id -> key (post+delayed non-DM versions)
+    dict[str, str],   # s3: composite_id -> key (pre non-DM versions)
+    list[dict],       # all delete markers across all phases
+]:
+    # EC2 seen in pre (instance_id -> state)
+    ec2_pre: dict[str, str] = {
+        inst["instance_id"]: inst.get("state", "")
+        for inst in pre.get("ec2_instances", [])
+    }
+    # EC2 seen in post or delayed (last-seen state wins)
+    ec2_post_delayed: dict[str, str] = {}
+    for snap in (post, delayed):
+        for inst in snap.get("ec2_instances", []):
+            ec2_post_delayed[inst["instance_id"]] = inst.get("state", "")
+
+    # S3 (non-delete-marker versions) and delete markers
+    pre_bucket     = pre.get("s3_bucket", "")
+    post_bucket    = post.get("s3_bucket", "")
+    delayed_bucket = delayed.get("s3_bucket", "")
+
+    s3_pre_versions, dm_pre   = _partition_s3(pre, pre_bucket)
+    s3_post_versions, dm_post = _partition_s3(post, post_bucket)
+    s3_del_versions, dm_del   = _partition_s3(delayed, delayed_bucket)
+
+    s3_pre: dict[str, str] = {v["resource_id"]: v["key"] for v in s3_pre_versions}
+    s3_post_delayed: dict[str, str] = {}
+    for v in s3_post_versions + s3_del_versions:
+        s3_post_delayed[v["resource_id"]] = v["key"]
+
+    all_delete_markers = dm_pre + dm_post + dm_del
+
+    return ec2_post_delayed, ec2_pre, s3_post_delayed, s3_pre, all_delete_markers
+
+
+def correlate(
+    registry_entries: list[dict[str, Any]],
+    pre:     dict[str, Any],
+    post:    dict[str, Any],
+    delayed: dict[str, Any],
+    registry_sha256: str = "",
+    pre_sha256:      str = "",
+    post_sha256:     str = "",
+    delayed_sha256:  str = "",
+) -> dict[str, Any]:
+    """Run sweep correlation; return the correlation result dict.
+
+    Args:
+        registry_entries: all entries from allocation_registry.jsonl
+        pre, post, delayed: normalized inventory snapshot dicts
+        *_sha256: optional SHA-256 of each input file for the inputs record
+
+    Returns a dict matching sweep_correlation.schema.json.
+    Gate logic: gate_failed=True if any orphan OR any anomaly is found.
+    """
+    known = _known_resource_ids(registry_entries)
+
+    ec2_post_del, ec2_pre, s3_post_del, s3_pre, delete_markers = \
+        _collect_by_phase(pre, post, delayed)
+
+    # All resource_ids seen in any inventory snapshot (EC2 + S3 objects).
+    all_ec2 = dict(ec2_pre)
+    all_ec2.update(ec2_post_del)   # post/delayed state overwrites pre if same ID
+    all_s3  = dict(s3_pre)
+    all_s3.update(s3_post_del)
+
+    correlated:  list[dict] = []
+    pre_existing: list[dict] = []
+    orphans:     list[dict] = []
+    anomalies:   list[dict] = []
+    vanished:    list[dict] = []
+
+    # -- EC2 correlation --
+
+    for iid, state in all_ec2.items():
+        if iid in known:
+            correlated.append({"resource_id": iid, "resource_type": "ec2_instance"})
+            if state not in _EXPECTED_EC2_STATES:
+                anomalies.append({
+                    "resource_id":  iid,
+                    "resource_type": "ec2_instance",
+                    "anomaly_type": CLOUD_STATE_ANOMALY,
+                    "detail":       f"state={state!r}",
+                })
+        elif iid in ec2_pre:
+            # In pre but not in known set → existed before the session.
+            pre_existing.append({"resource_id": iid, "resource_type": "ec2_instance"})
+        else:
+            # Appeared in post/delayed but not pre and not known → orphan.
+            orphans.append({
+                "resource_id":     iid,
+                "resource_type":   "ec2_instance",
+                "orphan_category": ORPHAN_VM_KNOWN,
+            })
+
+    # -- S3 correlation --
+
+    for cid in all_s3:
+        if cid in known:
+            correlated.append({"resource_id": cid, "resource_type": "s3_object_version"})
+        elif cid in s3_pre:
+            pre_existing.append({"resource_id": cid, "resource_type": "s3_object_version"})
+        else:
+            orphans.append({
+                "resource_id":     cid,
+                "resource_type":   "s3_object_version",
+                "orphan_category": ORPHAN_S3_RECORDED_CURRENT_VERSION,
+            })
+
+    # -- Vanished: in known set but absent from all inventory snapshots --
+
+    seen_all_ids = set(all_ec2) | set(all_s3)
+    for entry in registry_entries:
+        if entry.get("trust_level") not in _TRUST_LEVELS_FOR_KNOWN_SET:
+            continue
+        rid = entry["resource_id"]
+        if rid not in seen_all_ids:
+            vanished.append({
+                "resource_id":  rid,
+                "resource_type": entry.get("resource_type", ""),
+            })
+
+    result: dict[str, Any] = {
+        "schema_version":          1,
+        "correlated":              correlated,
+        "pre_existing":            pre_existing,
+        "orphans":                 orphans,
+        "anomalies":               anomalies,
+        "vanished":                vanished,
+        "delete_markers_observed": delete_markers,
+        "inputs": {
+            "registry_sha256": registry_sha256,
+            "pre_sha256":      pre_sha256,
+            "post_sha256":     post_sha256,
+            "delayed_sha256":  delayed_sha256,
+        },
+    }
+    validate("sweep_correlation", result)
+    return result
+
+
+def write_correlation(result: dict[str, Any], output_path: Path) -> None:
+    """Write correlation.json atomically."""
+    atomic_write(str(output_path), json.dumps(result, indent=2).encode())

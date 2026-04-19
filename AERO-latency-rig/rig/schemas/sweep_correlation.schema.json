@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "rig/schemas/sweep_correlation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "correlated",
+    "pre_existing",
+    "orphans",
+    "anomalies",
+    "vanished",
+    "delete_markers_observed",
+    "inputs"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "correlated": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "resource_type"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "ec2_instance",
+              "s3_object_version"
+            ]
+          }
+        }
+      }
+    },
+    "pre_existing": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "resource_type"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "ec2_instance",
+              "s3_object_version"
+            ]
+          }
+        }
+      }
+    },
+    "orphans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "resource_type",
+          "orphan_category"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "ec2_instance",
+              "s3_object_version"
+            ]
+          },
+          "orphan_category": {
+            "type": "string",
+            "enum": [
+              "orphan_vm_known",
+              "orphan_s3_recorded_current_version"
+            ]
+          }
+        }
+      }
+    },
+    "anomalies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "resource_type",
+          "anomaly_type",
+          "detail"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_type": {
+            "type": "string",
+            "enum": [
+              "ec2_instance",
+              "s3_object_version"
+            ]
+          },
+          "anomaly_type": {
+            "type": "string",
+            "enum": [
+              "cloud_state_anomaly"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "vanished": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "resource_type"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "resource_type": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "delete_markers_observed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "resource_id",
+          "key",
+          "version_id"
+        ],
+        "properties": {
+          "resource_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "key": {
+            "type": "string"
+          },
+          "version_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "registry_sha256",
+        "pre_sha256",
+        "post_sha256",
+        "delayed_sha256"
+      ],
+      "properties": {
+        "registry_sha256": {
+          "type": "string"
+        },
+        "pre_sha256": {
+          "type": "string"
+        },
+        "post_sha256": {
+          "type": "string"
+        },
+        "delayed_sha256": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

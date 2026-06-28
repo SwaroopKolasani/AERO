@@ -13,7 +13,9 @@ import (
 
 	"aero-cache/internal/gate"
 	"aero-cache/internal/httpapi"
+	"aero-cache/internal/key"
 	"aero-cache/internal/metrics"
+	"strconv"
 )
 
 func main() {
@@ -27,6 +29,15 @@ func main() {
 		Debug:              getenv("AERO_DEBUG", "") == "1",
 		GateMode:           gate.Mode(getenv("AERO_GATE_MODE", "strict")),
 		TokenizerAvailable: getenv("AERO_TOKENIZER_AVAILABLE", "1") == "1",
+		Epoch:              getenvUint64("AERO_EPOCH", 0),
+		Fingerprint: key.Fingerprint{
+			Model:  getenv("AERO_FINGERPRINT_MODEL", "dev/tiny@local"),
+			Engine: getenv("AERO_FINGERPRINT_ENGINE", "ollama@local"),
+			Config: map[string]any{
+				"dtype": getenv("AERO_FINGERPRINT_DTYPE", "cpu"),
+				"tp":    1,
+			},
+		},
 	}, reg)
 
 	srv := &http.Server{
@@ -72,4 +83,18 @@ func getenv(key string, fallback string) string {
 		return fallback
 	}
 	return v
+}
+
+func getenvUint64(keyName string, fallback uint64) uint64 {
+	v := os.Getenv(keyName)
+	if v == "" {
+		return fallback
+	}
+
+	n, err := strconv.ParseUint(v, 10, 64)
+	if err != nil {
+		return fallback
+	}
+
+	return n
 }

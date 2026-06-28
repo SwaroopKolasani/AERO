@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"aero-cache/internal/gate"
+	"aero-cache/internal/key"
 	"aero-cache/internal/metrics"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -27,12 +28,15 @@ type Config struct {
 	Debug              bool
 	GateMode           gate.Mode
 	TokenizerAvailable bool
+	Fingerprint        key.Fingerprint
+	Epoch              uint64
 }
 
 type Server struct {
-	cfg   Config
-	stats *metrics.Registry
-	gate  *gate.Decider
+	cfg        Config
+	stats      *metrics.Registry
+	gate       *gate.Decider
+	keyBuilder *key.Builder
 }
 
 func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
@@ -44,6 +48,15 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		cfg.GateMode = gate.ModeStrict
 	}
 
+	kb, err := key.NewBuilder(key.BuilderConfig{
+		Fingerprint: cfg.Fingerprint,
+		Epoch:       cfg.Epoch,
+		Tokenizer:   key.ByteTokenizer{},
+	})
+	if err != nil {
+		panic(err)
+	}
+
 	s := &Server{
 		cfg:   cfg,
 		stats: stats,
@@ -51,6 +64,7 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 			Mode:               cfg.GateMode,
 			TokenizerAvailable: cfg.TokenizerAvailable,
 		}),
+		keyBuilder: kb,
 	}
 
 	mux := http.NewServeMux()
@@ -129,34 +143,37 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 
 		decision := s.gate.Evaluate(body)
 
-		if !decision.Cacheable {
-			// Correct behavior once upstream exists:
-			// bypass cache entirely and forward body to upstream.
-			s.observe(endpoint, metrics.ResultBypass, "none", http.StatusNotImplemented, start, decision.Reason)
+		material, err := s.keyBuilder.Build(body)
+		if err != nil {
+			// Fail-open: key/tokenizer/canonicalization failure bypasses cache.
+			s.observe(endpoint, metrics.ResultBypass, "none", http.StatusNotImplemented, start, "key_build_failed")
 			writeAeroHeaders(w, metrics.ResultBypass, "none", start, 0, 0)
-			w.Header().Set("X-Aero-Bypass-Reason", decision.Reason)
+			w.Header().Set("X-Aero-Bypass-Reason", "key_build_failed")
 
 			writeOpenAIError(
 				w,
 				http.StatusNotImplemented,
-				"AeroCache bypassed cache, but upstream path is not wired yet",
+				"AeroCache key build failed, bypassing cache, but upstream path is not wired yet",
 				"upstream_not_wired",
 			)
 			return
 		}
 
-		// Correct behavior once cache exists:
-		// key -> lookup -> verify -> hit OR miss -> singleflight -> upstream.
 		s.observe(endpoint, metrics.ResultMiss, "none", http.StatusNotImplemented, start, "")
 		writeAeroHeaders(w, metrics.ResultMiss, "none", start, 0, 0)
 		w.Header().Set("X-Aero-Gate", "cacheable")
 		w.Header().Set("X-Aero-Gate-Reason", decision.Reason)
 
+		if s.cfg.Debug {
+			w.Header().Set("X-Aero-Key", material.KeyHex)
+			w.Header().Set("X-Aero-Store-Key", material.StoreKey)
+		}
+
 		writeOpenAIError(
 			w,
 			http.StatusNotImplemented,
-			"AeroCache determinism gate passed, but cache path is not wired yet",
-			"cache_path_not_wired",
+			"AeroCache key built, but cache lookup path is not wired yet",
+			"cache_lookup_not_wired",
 		)
 	}
 }

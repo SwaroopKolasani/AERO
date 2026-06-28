@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>AeroBench</title>
+</head>
+<body>
+  <main>
+    <h1>AeroBench</h1>
+    <pre id="stats">loading...</pre>
+  </main>
+  <script>
+    fetch('/stats')
+      .then(r => r.json())
+      .then(j => document.getElementById('stats').textContent = JSON.stringify(j, null, 2))
+      .catch(e => document.getElementById('stats').textContent = String(e));
+  </script>
+</body>
+</html>

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"aero-cache/internal/gate"
 	"aero-cache/internal/metrics"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,13 +23,16 @@ import (
 const maxRequestBodyBytes = 32 << 20 // 32 MiB
 
 type Config struct {
-	SPAPath string
-	Debug   bool
+	SPAPath            string
+	Debug              bool
+	GateMode           gate.Mode
+	TokenizerAvailable bool
 }
 
 type Server struct {
 	cfg   Config
 	stats *metrics.Registry
+	gate  *gate.Decider
 }
 
 func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
@@ -36,9 +40,17 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		cfg.SPAPath = "web/dist"
 	}
 
+	if cfg.GateMode == "" {
+		cfg.GateMode = gate.ModeStrict
+	}
+
 	s := &Server{
 		cfg:   cfg,
 		stats: stats,
+		gate: gate.NewDecider(gate.Config{
+			Mode:               cfg.GateMode,
+			TokenizerAvailable: cfg.TokenizerAvailable,
+		}),
 	}
 
 	mux := http.NewServeMux()
@@ -52,9 +64,9 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		promhttp.HandlerOpts{},
 	))
 
-	mux.HandleFunc("/v1/chat/completions", s.openAIStub("/v1/chat/completions"))
-	mux.HandleFunc("/v1/completions", s.openAIStub("/v1/completions"))
-	mux.HandleFunc("/v1/embeddings", s.openAIStub("/v1/embeddings"))
+	mux.HandleFunc("/v1/chat/completions", s.openAIHandler("/v1/chat/completions"))
+	mux.HandleFunc("/v1/completions", s.openAIHandler("/v1/completions"))
+	mux.HandleFunc("/v1/embeddings", s.openAIHandler("/v1/embeddings"))
 
 	mux.HandleFunc("/aerobench/", s.spa)
 	mux.HandleFunc("/", s.spa)
@@ -92,7 +104,7 @@ func (s *Server) statsJSON(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.stats.Snapshot())
 }
 
-func (s *Server) openAIStub(endpoint string) http.HandlerFunc {
+func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -115,12 +127,37 @@ func (s *Server) openAIStub(endpoint string) http.HandlerFunc {
 			return
 		}
 
-		// Current phase: HTTP surface only.
-		// Later this becomes:
-		// gate -> key -> lookup -> verify -> hit OR singleflight -> upstream.
-		s.observe(endpoint, metrics.ResultBypass, "none", http.StatusNotImplemented, start, "not_wired")
-		writeAeroHeaders(w, metrics.ResultBypass, "none", start, 0, 0)
-		writeOpenAIError(w, http.StatusNotImplemented, "AeroCache upstream path is not wired yet", "upstream_not_wired")
+		decision := s.gate.Evaluate(body)
+
+		if !decision.Cacheable {
+			// Correct behavior once upstream exists:
+			// bypass cache entirely and forward body to upstream.
+			s.observe(endpoint, metrics.ResultBypass, "none", http.StatusNotImplemented, start, decision.Reason)
+			writeAeroHeaders(w, metrics.ResultBypass, "none", start, 0, 0)
+			w.Header().Set("X-Aero-Bypass-Reason", decision.Reason)
+
+			writeOpenAIError(
+				w,
+				http.StatusNotImplemented,
+				"AeroCache bypassed cache, but upstream path is not wired yet",
+				"upstream_not_wired",
+			)
+			return
+		}
+
+		// Correct behavior once cache exists:
+		// key -> lookup -> verify -> hit OR miss -> singleflight -> upstream.
+		s.observe(endpoint, metrics.ResultMiss, "none", http.StatusNotImplemented, start, "")
+		writeAeroHeaders(w, metrics.ResultMiss, "none", start, 0, 0)
+		w.Header().Set("X-Aero-Gate", "cacheable")
+		w.Header().Set("X-Aero-Gate-Reason", decision.Reason)
+
+		writeOpenAIError(
+			w,
+			http.StatusNotImplemented,
+			"AeroCache determinism gate passed, but cache path is not wired yet",
+			"cache_path_not_wired",
+		)
 	}
 }
 

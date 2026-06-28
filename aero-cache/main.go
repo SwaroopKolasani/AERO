@@ -1,4 +1,4 @@
-	//Wire up the registry, boot the HTTP server
+//Wire up the registry, boot the HTTP server
 
 package main
 
@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"aero-cache/internal/gate"
 	"aero-cache/internal/httpapi"
 	"aero-cache/internal/metrics"
 )
@@ -22,8 +23,10 @@ func main() {
 	reg := metrics.NewRegistry()
 
 	handler := httpapi.NewRouter(httpapi.Config{
-		SPAPath: spaPath,
-		Debug:   getenv("AERO_DEBUG", "") == "1",
+		SPAPath:            spaPath,
+		Debug:              getenv("AERO_DEBUG", "") == "1",
+		GateMode:           gate.Mode(getenv("AERO_GATE_MODE", "strict")),
+		TokenizerAvailable: getenv("AERO_TOKENIZER_AVAILABLE", "1") == "1",
 	}, reg)
 
 	srv := &http.Server{

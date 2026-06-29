@@ -7,6 +7,7 @@ require (
 	github.com/klauspost/compress v1.18.6
 	github.com/prometheus/client_golang v1.23.2
 	github.com/valkey-io/valkey-go v1.0.76
+	golang.org/x/sync v0.21.0
 	lukechampine.com/blake3 v1.4.1
 )
 

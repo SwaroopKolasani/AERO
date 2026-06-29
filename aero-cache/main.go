@@ -30,6 +30,7 @@ func main() {
 		GateMode:           gate.Mode(getenv("AERO_GATE_MODE", "strict")),
 		TokenizerAvailable: getenv("AERO_TOKENIZER_AVAILABLE", "1") == "1",
 		Epoch:              getenvUint64("AERO_EPOCH", 0),
+		UpstreamURL:        getenv("AERO_UPSTREAM_URL", "http://localhost:11434"),
 		Fingerprint: key.Fingerprint{
 			Model:  getenv("AERO_FINGERPRINT_MODEL", "dev/tiny@local"),
 			Engine: getenv("AERO_FINGERPRINT_ENGINE", "ollama@local"),

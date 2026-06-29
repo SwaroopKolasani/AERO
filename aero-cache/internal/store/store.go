@@ -15,18 +15,23 @@ type Store interface {
 }
 
 type Entry struct {
-	TokenIDs    []uint32      `json:"token_ids"`
-	Params      []byte        `json:"params"`
-	Fingerprint string        `json:"fingerprint"`
-	Epoch       uint64        `json:"epoch"`
-	Response    []byte        `json:"response"`
-	RespHash    [32]byte      `json:"resp_hash"`
-	Compressed  bool          `json:"compressed"`
-	DictID      uint32        `json:"dict_id"`
-	CreatedAt   int64         `json:"created_at"`
-	TTL         time.Duration `json:"ttl"`
-	TokensOut   int           `json:"tokens_out"`
-	OriginTier  string        `json:"origin_tier"`
+	TokenIDs    []uint32 `json:"token_ids"`
+	Params      []byte   `json:"params"`
+	Fingerprint string   `json:"fingerprint"`
+	Epoch       uint64   `json:"epoch"`
+
+	Response   []byte   `json:"response"`
+	RespHash   [32]byte `json:"resp_hash"`
+	Compressed bool     `json:"compressed"`
+	DictID     uint32   `json:"dict_id"`
+
+	StatusCode  int    `json:"status_code"`
+	ContentType string `json:"content_type"`
+
+	CreatedAt  int64         `json:"created_at"`
+	TTL        time.Duration `json:"ttl"`
+	TokensOut  int           `json:"tokens_out"`
+	OriginTier string        `json:"origin_tier"`
 }
 
 func (e *Entry) Clone() *Entry {
@@ -59,7 +64,8 @@ func (e *Entry) SizeBytes() int64 {
 			len(e.Params) +
 			len(e.Fingerprint) +
 			len(e.Response) +
+			len(e.ContentType) +
 			32 +
-			128,
+			160,
 	)
 }

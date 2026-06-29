@@ -1,5 +1,4 @@
-//HTTP Handlers (OpenAI SDK endpoints + UI assets)
-
+// HTTP handlers: OpenAI-compatible endpoints, stats, metrics, and UI assets.
 package httpapi
 
 import (
@@ -16,7 +15,11 @@ import (
 
 	"aero-cache/internal/gate"
 	"aero-cache/internal/key"
+	"aero-cache/internal/lookup"
 	"aero-cache/internal/metrics"
+	"aero-cache/internal/store/l1ristretto"
+	"aero-cache/internal/store/l2valkey"
+	"aero-cache/internal/store/l3r2"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -37,6 +40,7 @@ type Server struct {
 	stats      *metrics.Registry
 	gate       *gate.Decider
 	keyBuilder *key.Builder
+	lookup     *lookup.Orchestrator
 }
 
 func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
@@ -57,6 +61,8 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		panic(err)
 	}
 
+	tiers := buildLookupTiers()
+
 	s := &Server{
 		cfg:   cfg,
 		stats: stats,
@@ -65,6 +71,7 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 			TokenizerAvailable: cfg.TokenizerAvailable,
 		}),
 		keyBuilder: kb,
+		lookup:     lookup.New(tiers, stats),
 	}
 
 	mux := http.NewServeMux()
@@ -88,6 +95,48 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 	return withCommonMiddleware(mux)
 }
 
+func buildLookupTiers() []lookup.Tier {
+	l1, err := l1ristretto.New(l1ristretto.Config{
+		MaxBytes:      512 << 20,
+		MaxEntryBytes: 256 << 10,
+		TTL:           time.Hour,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	tiers := []lookup.Tier{
+		{
+			Store:  l1,
+			Budget: time.Millisecond,
+		},
+	}
+
+	if addr := getenvLocal("AERO_L2_ADDR", ""); addr != "" {
+		l2, err := l2valkey.New(l2valkey.Config{
+			Addr:        addr,
+			GetBudget:   5 * time.Millisecond,
+			TTL:         24 * time.Hour,
+			Compression: true,
+		})
+		if err != nil {
+			panic(err)
+		}
+
+		tiers = append(tiers, lookup.Tier{
+			Store:  l2,
+			Budget: 5 * time.Millisecond,
+		})
+	}
+
+	tiers = append(tiers, lookup.Tier{
+		Store:  l3r2.NewDisabled(),
+		Budget: 50 * time.Millisecond,
+	})
+
+	return tiers
+}
+
 func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	if !allowMethod(w, r, http.MethodGet) {
 		return
@@ -103,7 +152,7 @@ func (s *Server) readyz(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Later: check Valkey, tokenizer registry, upstream config.
+	// Later: check Valkey, tokenizer registry, and upstream config.
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status": "ready",
 	})
@@ -143,6 +192,22 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 
 		decision := s.gate.Evaluate(body)
 
+		if !decision.Cacheable {
+			// Correct future behavior:
+			// bypass cache entirely and forward this request to upstream.
+			s.observe(endpoint, metrics.ResultBypass, "none", http.StatusNotImplemented, start, decision.Reason)
+			writeAeroHeaders(w, metrics.ResultBypass, "none", start, 0, 0)
+			w.Header().Set("X-Aero-Bypass-Reason", decision.Reason)
+
+			writeOpenAIError(
+				w,
+				http.StatusNotImplemented,
+				"AeroCache bypassed cache, but upstream path is not wired yet",
+				"upstream_not_wired",
+			)
+			return
+		}
+
 		material, err := s.keyBuilder.Build(body)
 		if err != nil {
 			// Fail-open: key/tokenizer/canonicalization failure bypasses cache.
@@ -159,6 +224,29 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 			return
 		}
 
+		hit := s.lookup.Lookup(r.Context(), material)
+
+		if hit.Hit {
+			s.observe(endpoint, metrics.ResultHit, hit.Tier, http.StatusOK, start, "")
+			writeAeroHeaders(w, metrics.ResultHit, hit.Tier, start, hit.Entry.TokensOut, 0)
+
+			if s.cfg.Debug {
+				w.Header().Set("X-Aero-Key", material.KeyHex)
+				w.Header().Set("X-Aero-Store-Key", material.StoreKey)
+			}
+
+			if hit.Entry.OriginTier != "" {
+				w.Header().Set("X-Aero-Origin-Tier", hit.Entry.OriginTier)
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(hit.Entry.Response)
+			return
+		}
+
+		// Correct future behavior:
+		// singleflight -> upstream -> stream response -> async write-back.
 		s.observe(endpoint, metrics.ResultMiss, "none", http.StatusNotImplemented, start, "")
 		writeAeroHeaders(w, metrics.ResultMiss, "none", start, 0, 0)
 		w.Header().Set("X-Aero-Gate", "cacheable")
@@ -172,8 +260,8 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 		writeOpenAIError(
 			w,
 			http.StatusNotImplemented,
-			"AeroCache key built, but cache lookup path is not wired yet",
-			"cache_lookup_not_wired",
+			"AeroCache miss: lookup path is wired, upstream/write-back path is not wired yet",
+			"cache_miss_upstream_not_wired",
 		)
 	}
 }
@@ -232,6 +320,7 @@ func (s *Server) serveIndexOrFallback(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
+
 	_, _ = io.WriteString(w, `<!doctype html>
 <html>
 <head>
@@ -295,6 +384,7 @@ func allowMethod(w http.ResponseWriter, r *http.Request, allowed string) bool {
 
 func methodNotAllowed(w http.ResponseWriter, got string, allowed ...string) {
 	w.Header().Set("Allow", strings.Join(allowed, ", "))
+
 	writeJSONStatus(w, http.StatusMethodNotAllowed, map[string]any{
 		"error": map[string]any{
 			"message": fmt.Sprintf("method %s not allowed", got),
@@ -310,4 +400,13 @@ func withCommonMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Aero-Proxy", "aerocache")
 		next.ServeHTTP(w, r)
 	})
+}
+
+func getenvLocal(key string, fallback string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+
+	return v
 }

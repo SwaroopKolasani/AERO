@@ -1,5 +1,4 @@
-//Wire up the registry, boot the HTTP server
-
+// Wire up the registry and boot the HTTP server.
 package main
 
 import (
@@ -8,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,7 +15,6 @@ import (
 	"aero-cache/internal/httpapi"
 	"aero-cache/internal/key"
 	"aero-cache/internal/metrics"
-	"strconv"
 )
 
 func main() {
@@ -24,20 +23,54 @@ func main() {
 
 	reg := metrics.NewRegistry()
 
+	tokenizerAvailable := false
+	tokenizer := key.Tokenizer(key.ByteTokenizer{})
+	renderer := key.Renderer(key.LegacyRenderer{})
+
+	fpConfig := map[string]any{
+		"dtype": getenv("AERO_FINGERPRINT_DTYPE", "cpu"),
+		"tp":    1,
+	}
+
+	if dir := getenv("AERO_TOKENIZER_DIR", ""); dir != "" {
+		bundle, err := key.LoadTokenizerBundle(key.TokenizerBundleConfig{
+			Dir:              dir,
+			ChatTemplateKind: getenv("AERO_CHAT_TEMPLATE_KIND", ""),
+		})
+		if err != nil {
+			log.Printf("aerocache: tokenizer unavailable; cache will bypass: %v", err)
+		} else {
+			tokenizerAvailable = true
+			tokenizer = bundle.Tokenizer
+			renderer = bundle.Renderer
+
+			fpConfig["tokenizer_sha256"] = bundle.TokenizerSHA256
+			fpConfig["tokenizer_config_sha256"] = bundle.TokenizerConfigSHA256
+			fpConfig["chat_template_sha256"] = bundle.ChatTemplateSHA256
+			fpConfig["chat_template_kind"] = bundle.ChatTemplateKind
+		}
+	} else if getenv("AERO_ALLOW_BYTE_TOKENIZER", "") == "1" {
+		log.Printf("aerocache: using ByteTokenizer because AERO_ALLOW_BYTE_TOKENIZER=1")
+
+		tokenizerAvailable = true
+
+		fpConfig["tokenizer"] = "byte-tokenizer-dev-only"
+		fpConfig["chat_template_kind"] = "legacy-dev-only"
+	}
+
 	handler := httpapi.NewRouter(httpapi.Config{
 		SPAPath:            spaPath,
 		Debug:              getenv("AERO_DEBUG", "") == "1",
 		GateMode:           gate.Mode(getenv("AERO_GATE_MODE", "strict")),
-		TokenizerAvailable: getenv("AERO_TOKENIZER_AVAILABLE", "1") == "1",
+		TokenizerAvailable: tokenizerAvailable,
 		Epoch:              getenvUint64("AERO_EPOCH", 0),
 		UpstreamURL:        getenv("AERO_UPSTREAM_URL", "http://localhost:11434"),
+		Tokenizer:          tokenizer,
+		Renderer:           renderer,
 		Fingerprint: key.Fingerprint{
-			Model:  getenv("AERO_FINGERPRINT_MODEL", "dev/tiny@local"),
+			Model:  getenv("AERO_FINGERPRINT_MODEL", "llama3.2:3b"),
 			Engine: getenv("AERO_FINGERPRINT_ENGINE", "ollama@local"),
-			Config: map[string]any{
-				"dtype": getenv("AERO_FINGERPRINT_DTYPE", "cpu"),
-				"tp":    1,
-			},
+			Config: fpConfig,
 		},
 	}, reg)
 
@@ -83,6 +116,7 @@ func getenv(key string, fallback string) string {
 	if v == "" {
 		return fallback
 	}
+
 	return v
 }
 

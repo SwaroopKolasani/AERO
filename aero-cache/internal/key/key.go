@@ -27,12 +27,14 @@ type BuilderConfig struct {
 	Fingerprint Fingerprint
 	Epoch       uint64
 	Tokenizer   Tokenizer
+	Renderer    Renderer
 }
 
 type Builder struct {
 	fp        Fingerprint
 	epoch     uint64
 	tokenizer Tokenizer
+	renderer  Renderer
 }
 
 type Tokenizer interface {
@@ -61,11 +63,15 @@ func NewBuilder(cfg BuilderConfig) (*Builder, error) {
 	if cfg.Tokenizer == nil {
 		return nil, errors.New("tokenizer is required")
 	}
+	if cfg.Renderer == nil {
+		cfg.Renderer = LegacyRenderer{}
+	}
 
 	return &Builder{
 		fp:        cfg.Fingerprint,
 		epoch:     cfg.Epoch,
 		tokenizer: cfg.Tokenizer,
+		renderer:  cfg.Renderer,
 	}, nil
 }
 
@@ -98,7 +104,7 @@ func (b *Builder) Build(body []byte) (*Material, error) {
 		return nil, fmt.Errorf("canonicalize body: %w", err)
 	}
 
-	renderedPrompt, err := RenderPrompt(normalizedObj)
+	renderedPrompt, err := b.renderer.Render(normalizedObj)
 	if err != nil {
 		return nil, fmt.Errorf("render prompt: %w", err)
 	}

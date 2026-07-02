@@ -39,6 +39,8 @@ type Config struct {
 	Fingerprint        key.Fingerprint
 	Epoch              uint64
 	UpstreamURL        string
+	Tokenizer          key.Tokenizer
+	Renderer           key.Renderer
 }
 
 type Server struct {
@@ -53,18 +55,21 @@ type Server struct {
 }
 
 func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
-	if cfg.SPAPath == "" {
-		cfg.SPAPath = "web/dist"
+	tok := cfg.Tokenizer
+	if tok == nil {
+		tok = key.ByteTokenizer{}
 	}
 
-	if cfg.GateMode == "" {
-		cfg.GateMode = gate.ModeStrict
+	renderer := cfg.Renderer
+	if renderer == nil {
+		renderer = key.LegacyRenderer{}
 	}
 
 	kb, err := key.NewBuilder(key.BuilderConfig{
 		Fingerprint: cfg.Fingerprint,
 		Epoch:       cfg.Epoch,
-		Tokenizer:   key.ByteTokenizer{},
+		Tokenizer:   tok,
+		Renderer:    renderer,
 	})
 	if err != nil {
 		panic(err)

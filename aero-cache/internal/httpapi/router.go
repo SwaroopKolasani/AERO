@@ -200,6 +200,7 @@ func (s *Server) statsJSON(w http.ResponseWriter, r *http.Request) {
 func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
+		requestID := newRequestID()
 
 		if !allowMethod(w, r, http.MethodPost) {
 			return
@@ -209,6 +210,7 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 		if err != nil {
 			s.observe(endpoint, metrics.ResultError, "none", http.StatusRequestEntityTooLarge, start, "")
 			writeAeroHeaders(w, metrics.ResultError, "none", start, 0, 0)
+			writeProofHeaders(w, requestID, false)
 			writeOpenAIError(w, http.StatusRequestEntityTooLarge, "request body too large", "request_too_large")
 			return
 		}
@@ -216,30 +218,32 @@ func (s *Server) openAIHandler(endpoint string) http.HandlerFunc {
 		if len(body) == 0 || !json.Valid(body) {
 			s.observe(endpoint, metrics.ResultError, "none", http.StatusBadRequest, start, "")
 			writeAeroHeaders(w, metrics.ResultError, "none", start, 0, 0)
+			writeProofHeaders(w, requestID, false)
 			writeOpenAIError(w, http.StatusBadRequest, "invalid JSON request body", "invalid_json")
 			return
 		}
 
+		wantsStream := requestWantsStream(body)
 		decision := s.gate.Evaluate(body)
 
 		if !decision.Cacheable {
-			s.proxyBypass(w, r, endpoint, body, start, decision.Reason)
+			s.proxyBypass(w, r, endpoint, body, start, requestID, wantsStream, decision.Reason)
 			return
 		}
 
 		material, err := s.keyBuilder.Build(body)
 		if err != nil {
-			s.proxyBypass(w, r, endpoint, body, start, "key_build_failed")
+			s.proxyBypass(w, r, endpoint, body, start, requestID, wantsStream, "key_build_failed")
 			return
 		}
 
 		hit := s.lookup.Lookup(r.Context(), material)
 		if hit.Hit {
-			s.serveCacheHit(w, endpoint, material, hit, start)
+			s.serveCacheHit(w, endpoint, material, hit, start, requestID, wantsStream)
 			return
 		}
 
-		s.handleMiss(w, r, endpoint, body, material, decision.Reason, start)
+		s.handleMiss(w, r, endpoint, body, material, decision.Reason, start, requestID, wantsStream)
 	}
 }
 
@@ -249,11 +253,16 @@ func (s *Server) proxyBypass(
 	endpoint string,
 	body []byte,
 	start time.Time,
+	requestID string,
+	wantsStream bool,
 	reason string,
 ) {
 	tw := &trackedResponseWriter{ResponseWriter: w}
 
-	writeAeroHeaders(tw, metrics.ResultBypass, "dev", start, 0, 0)
+	initialCost := estimateCostUSD(metrics.ResultBypass, "dev", 0)
+
+	writeAeroHeaders(tw, metrics.ResultBypass, "dev", start, 0, initialCost)
+	writeProofHeaders(tw, requestID, false)
 	tw.Header().Set("X-Aero-Bypass-Reason", reason)
 
 	s.stats.IncUpstreamCall()
@@ -264,10 +273,28 @@ func (s *Server) proxyBypass(
 
 		if !tw.WroteHeader() {
 			writeAeroHeaders(tw, metrics.ResultError, "dev", start, 0, 0)
+			writeProofHeaders(tw, requestID, false)
 			writeOpenAIError(tw, http.StatusBadGateway, "upstream request failed", "upstream_failed")
 		}
 
 		return
+	}
+
+	costUSD := estimateCostUSD(metrics.ResultBypass, "dev", res.TokensOut)
+
+	if shouldWriteReceiptSSE(wantsStream, res.ContentType) {
+		writeReceiptSSE(tw, buildReceipt(
+			requestID,
+			nil,
+			"dev",
+			metrics.ResultBypass,
+			false,
+			start,
+			res.Body,
+			res.TokensOut,
+			costUSD,
+			res.TTFT,
+		))
 	}
 
 	s.observe(endpoint, metrics.ResultBypass, "dev", res.StatusCode, start, reason)
@@ -279,6 +306,8 @@ func (s *Server) serveCacheHit(
 	material *key.Material,
 	hit lookup.Result,
 	start time.Time,
+	requestID string,
+	wantsStream bool,
 ) {
 	status := hit.Entry.StatusCode
 	if status == 0 {
@@ -290,8 +319,11 @@ func (s *Server) serveCacheHit(
 		contentType = "application/json"
 	}
 
+	costUSD := estimateCostUSD(metrics.ResultHit, hit.Tier, hit.Entry.TokensOut)
+
 	s.observe(endpoint, metrics.ResultHit, hit.Tier, status, start, "")
-	writeAeroHeaders(w, metrics.ResultHit, hit.Tier, start, hit.Entry.TokensOut, 0)
+	writeAeroHeaders(w, metrics.ResultHit, hit.Tier, start, hit.Entry.TokensOut, costUSD)
+	writeProofHeaders(w, requestID, true)
 
 	if s.cfg.Debug {
 		w.Header().Set("X-Aero-Key", material.KeyHex)
@@ -306,6 +338,21 @@ func (s *Server) serveCacheHit(
 	w.WriteHeader(status)
 	_, _ = w.Write(hit.Entry.Response)
 
+	if shouldWriteReceiptSSE(wantsStream, contentType) {
+		writeReceiptSSE(w, buildReceipt(
+			requestID,
+			material,
+			hit.Tier,
+			metrics.ResultHit,
+			true,
+			start,
+			hit.Entry.Response,
+			hit.Entry.TokensOut,
+			costUSD,
+			0,
+		))
+	}
+
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -319,6 +366,8 @@ func (s *Server) handleMiss(
 	material *key.Material,
 	gateReason string,
 	start time.Time,
+	requestID string,
+	wantsStream bool,
 ) {
 	leaderRan := false
 	leaderWrote := false
@@ -328,7 +377,10 @@ func (s *Server) handleMiss(
 
 		tw := &trackedResponseWriter{ResponseWriter: w}
 
-		writeAeroHeaders(tw, metrics.ResultMiss, "dev", start, 0, 0)
+		initialCost := estimateCostUSD(metrics.ResultMiss, "dev", 0)
+
+		writeAeroHeaders(tw, metrics.ResultMiss, "dev", start, 0, initialCost)
+		writeProofHeaders(tw, requestID, false)
 		tw.Header().Set("X-Aero-Gate", "cacheable")
 		tw.Header().Set("X-Aero-Gate-Reason", gateReason)
 
@@ -349,6 +401,8 @@ func (s *Server) handleMiss(
 			return nil, err
 		}
 
+		costUSD := estimateCostUSD(metrics.ResultMiss, "dev", upRes.TokensOut)
+
 		if upRes.StatusCode >= 200 && upRes.StatusCode < 300 {
 			s.writeback.Enqueue(writeback.Job{
 				Material:    material,
@@ -361,6 +415,21 @@ func (s *Server) handleMiss(
 			})
 		}
 
+		if shouldWriteReceiptSSE(wantsStream, upRes.ContentType) {
+			writeReceiptSSE(tw, buildReceipt(
+				requestID,
+				material,
+				"dev",
+				metrics.ResultMiss,
+				false,
+				start,
+				upRes.Body,
+				upRes.TokensOut,
+				costUSD,
+				upRes.TTFT,
+			))
+		}
+
 		return &coalesce.Result{
 			StatusCode:  upRes.StatusCode,
 			Header:      map[string][]string(upRes.Header),
@@ -368,6 +437,8 @@ func (s *Server) handleMiss(
 			ContentType: upRes.ContentType,
 			TokensOut:   upRes.TokensOut,
 			OriginTier:  upRes.OriginTier,
+			TTFT:        upRes.TTFT,
+			CostUSD:     costUSD,
 		}, nil
 	})
 
@@ -376,6 +447,7 @@ func (s *Server) handleMiss(
 
 		if !leaderWrote {
 			writeAeroHeaders(w, metrics.ResultError, "dev", start, 0, 0)
+			writeProofHeaders(w, requestID, false)
 			writeOpenAIError(w, http.StatusBadGateway, "upstream request failed", "upstream_failed")
 		}
 
@@ -392,7 +464,7 @@ func (s *Server) handleMiss(
 		return
 	}
 
-	s.serveCoalesced(w, endpoint, material, res, start)
+	s.serveCoalesced(w, endpoint, material, res, start, requestID, wantsStream)
 }
 
 func (s *Server) serveCoalesced(
@@ -401,10 +473,13 @@ func (s *Server) serveCoalesced(
 	material *key.Material,
 	res *coalesce.Result,
 	start time.Time,
+	requestID string,
+	wantsStream bool,
 ) {
 	if res == nil {
 		s.observe(endpoint, metrics.ResultError, "dev", http.StatusBadGateway, start, "")
 		writeAeroHeaders(w, metrics.ResultError, "dev", start, 0, 0)
+		writeProofHeaders(w, requestID, false)
 		writeOpenAIError(w, http.StatusBadGateway, "coalesced response missing", "coalesced_response_missing")
 		return
 	}
@@ -419,8 +494,11 @@ func (s *Server) serveCoalesced(
 		contentType = "application/json"
 	}
 
+	costUSD := estimateCostUSD(metrics.ResultCoalesced, "dev", res.TokensOut)
+
 	s.observe(endpoint, metrics.ResultCoalesced, "dev", status, start, "")
-	writeAeroHeaders(w, metrics.ResultCoalesced, "dev", start, res.TokensOut, 0)
+	writeAeroHeaders(w, metrics.ResultCoalesced, "dev", start, res.TokensOut, costUSD)
+	writeProofHeaders(w, requestID, false)
 
 	if s.cfg.Debug {
 		w.Header().Set("X-Aero-Key", material.KeyHex)
@@ -430,6 +508,21 @@ func (s *Server) serveCoalesced(
 	w.Header().Set("Content-Type", contentType)
 	w.WriteHeader(status)
 	_, _ = w.Write(res.Body)
+
+	if shouldWriteReceiptSSE(wantsStream, contentType) {
+		writeReceiptSSE(w, buildReceipt(
+			requestID,
+			material,
+			"dev",
+			metrics.ResultCoalesced,
+			false,
+			start,
+			res.Body,
+			res.TokensOut,
+			costUSD,
+			res.TTFT,
+		))
+	}
 
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
@@ -517,6 +610,7 @@ func writeAeroHeaders(w http.ResponseWriter, result metrics.CacheResult, tier st
 	w.Header().Set("X-Aero-Latency-Ms", fmt.Sprintf("%.3f", float64(time.Since(start).Microseconds())/1000.0))
 	w.Header().Set("X-Aero-Tokens-Out", strconv.Itoa(tokensOut))
 	w.Header().Set("X-Aero-Cost-Estimate-USD", fmt.Sprintf("%.8f", costUSD))
+	w.Header().Set("X-Aero-Cost-Usd", fmt.Sprintf("%.8f", costUSD))
 }
 
 func writeOpenAIError(w http.ResponseWriter, status int, message string, code string) {

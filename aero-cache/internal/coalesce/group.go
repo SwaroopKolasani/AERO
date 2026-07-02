@@ -1,6 +1,8 @@
 package coalesce
 
 import (
+	"time"
+
 	"golang.org/x/sync/singleflight"
 )
 
@@ -11,6 +13,8 @@ type Result struct {
 	ContentType string
 	TokensOut   int
 	OriginTier  string
+	TTFT        time.Duration
+	CostUSD     float64
 }
 
 type Group struct {

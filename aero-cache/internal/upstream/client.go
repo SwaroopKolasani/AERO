@@ -28,6 +28,7 @@ type Result struct {
 	ContentType string
 	TokensOut   int
 	OriginTier  string
+	TTFT        time.Duration
 }
 
 func NewClient(cfg Config) *Client {
@@ -46,9 +47,6 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-// Do posts the original OpenAI-compatible request to the direct upstream.
-// If streamTo is non-nil, bytes are streamed to the client while also being
-// copied into the returned buffer for write-back.
 func (c *Client) Do(
 	ctx context.Context,
 	endpoint string,
@@ -56,6 +54,7 @@ func (c *Client) Do(
 	streamTo http.ResponseWriter,
 	markWritten func(),
 ) (*Result, error) {
+	start := time.Now()
 	url := c.baseURL + endpoint
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -89,6 +88,7 @@ func (c *Client) Do(
 	}
 
 	var buf bytes.Buffer
+	var firstByte time.Time
 
 	tmp := make([]byte, 32*1024)
 	flusher, _ := streamTo.(http.Flusher)
@@ -96,8 +96,11 @@ func (c *Client) Do(
 	for {
 		n, readErr := resp.Body.Read(tmp)
 		if n > 0 {
-			chunk := tmp[:n]
+			if firstByte.IsZero() {
+				firstByte = time.Now()
+			}
 
+			chunk := tmp[:n]
 			buf.Write(chunk)
 
 			if streamTo != nil {
@@ -118,6 +121,11 @@ func (c *Client) Do(
 		}
 	}
 
+	var ttft time.Duration
+	if !firstByte.IsZero() {
+		ttft = firstByte.Sub(start)
+	}
+
 	out := buf.Bytes()
 
 	return &Result{
@@ -127,6 +135,7 @@ func (c *Client) Do(
 		ContentType: contentType,
 		TokensOut:   ExtractTokensOut(out),
 		OriginTier:  "dev",
+		TTFT:        ttft,
 	}, nil
 }
 

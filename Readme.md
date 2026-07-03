@@ -2,7 +2,7 @@
 
 # AERO
 
-<img src="https://raw.githubusercontent.com/SwaroopKolasani/AERO/main/asserts/logo_1.png" width="350" alt="AERO Logo">
+<img src="https://github.com/SwaroopKolasani/AERO/blob/main/aero-bench/web/logo_1.png" width="350" alt="AERO Logo">
 
 **Multi-cloud ephemeral compute bursting with content-addressed memoization.**
 

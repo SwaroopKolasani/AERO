@@ -32,29 +32,13 @@ type TokenizerBundle struct {
 
 func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
 	if cfg.Dir != "" {
-		if cfg.TokenizerPath == "" {
-			cfg.TokenizerPath = filepath.Join(cfg.Dir, "tokenizer.json")
-		}
 		if cfg.TokenizerConfigPath == "" {
 			cfg.TokenizerConfigPath = filepath.Join(cfg.Dir, "tokenizer_config.json")
 		}
+
 		if cfg.ChatTemplatePath == "" {
 			cfg.ChatTemplatePath = filepath.Join(cfg.Dir, "chat_template.jinja")
 		}
-	}
-
-	if cfg.TokenizerPath == "" {
-		return nil, fmt.Errorf("tokenizer path is required")
-	}
-
-	tokenizerHash, err := fileSHA256(cfg.TokenizerPath)
-	if err != nil {
-		return nil, err
-	}
-
-	tok, err := NewHuggingFaceTokenizer(cfg.TokenizerPath)
-	if err != nil {
-		return nil, err
 	}
 
 	templateText := ""
@@ -89,13 +73,47 @@ func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
 		kind = detectTemplateKind(templateText)
 	}
 
+	if kind == "" {
+		return nil, fmt.Errorf("chat template kind is required or must be detectable from tokenizer_config.json")
+	}
+
+	if cfg.TokenizerPath == "" {
+		cfg.TokenizerPath = defaultTokenizerPathForKind(cfg.Dir, kind)
+	}
+
+	tokenizerHash := ""
+	if cfg.TokenizerPath != "" {
+		var err error
+		tokenizerHash, err = fileSHA256(cfg.TokenizerPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	var tok Tokenizer
 	var renderer Renderer
+	var err error
 
 	switch kind {
 	case "llama3":
+		tok, err = NewLlama3Tokenizer("")
+		if err != nil {
+			return nil, err
+		}
+
 		renderer = Llama3Renderer{}
+
 	default:
-		return nil, fmt.Errorf("unsupported chat template kind %q", kind)
+		if cfg.TokenizerPath == "" {
+			return nil, fmt.Errorf("tokenizer path is required for chat template kind %q", kind)
+		}
+
+		tok, err = NewHuggingFaceTokenizer(cfg.TokenizerPath)
+		if err != nil {
+			return nil, err
+		}
+
+		renderer = LegacyRenderer{}
 	}
 
 	return &TokenizerBundle{
@@ -109,6 +127,28 @@ func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
 		ChatTemplateSHA256:    templateHash,
 		ChatTemplateKind:      kind,
 	}, nil
+}
+
+func defaultTokenizerPathForKind(dir string, kind string) string {
+	if dir == "" {
+		return ""
+	}
+
+	switch kind {
+	case "llama3":
+		return firstExisting(
+			filepath.Join(dir, "tokenizer.json"),
+			filepath.Join(dir, "tokenizer_config.json"),
+		)
+
+	default:
+		return firstExisting(
+			filepath.Join(dir, "tokenizer.json"),
+			filepath.Join(dir, "tokenizer.model"),
+			filepath.Join(dir, "sentencepiece.model"),
+			filepath.Join(dir, "spiece.model"),
+		)
+	}
 }
 
 func extractChatTemplate(b []byte) string {
@@ -147,4 +187,18 @@ func fileSHA256(path string) (string, error) {
 func sha256Hex(b []byte) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
+}
+
+func firstExisting(paths ...string) string {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+
+	return ""
 }

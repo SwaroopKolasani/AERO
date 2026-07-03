@@ -167,38 +167,35 @@ func (b *Builder) canonicalFingerprint() ([]byte, string, error) {
 }
 
 func HashMaterial(fingerprint []byte, epoch uint64, tokenIDs []uint32, canonicalParams []byte) [32]byte {
-	h := blake3.New(32, nil)
+	var b bytes.Buffer
 
-	writePart(h, []byte(DomainSeparator))
-	writePart(h, fingerprint)
+	writeHashPart(&b, []byte(DomainSeparator))
+	writeHashPart(&b, fingerprint)
 
 	var epochBuf [8]byte
 	binary.BigEndian.PutUint64(epochBuf[:], epoch)
-	writePart(h, epochBuf[:])
+	writeHashPart(&b, epochBuf[:])
+
+	var tokenLenBuf [8]byte
+	binary.BigEndian.PutUint64(tokenLenBuf[:], uint64(len(tokenIDs)))
+	writeHashPart(&b, tokenLenBuf[:])
 
 	var tokBuf [4]byte
-	var lenBuf [8]byte
-
-	binary.BigEndian.PutUint64(lenBuf[:], uint64(len(tokenIDs)))
-	writePart(h, lenBuf[:])
-
 	for _, tok := range tokenIDs {
 		binary.BigEndian.PutUint32(tokBuf[:], tok)
-		_, _ = h.Write(tokBuf[:])
+		b.Write(tokBuf[:])
 	}
 
-	writePart(h, canonicalParams)
+	writeHashPart(&b, canonicalParams)
 
-	var out [32]byte
-	_, _ = h.XOF().Read(out[:])
-	return out
+	return blake3.Sum256(b.Bytes())
 }
 
-func writePart(h *blake3.Hasher, b []byte) {
+func writeHashPart(b *bytes.Buffer, part []byte) {
 	var lenBuf [8]byte
-	binary.BigEndian.PutUint64(lenBuf[:], uint64(len(b)))
-	_, _ = h.Write(lenBuf[:])
-	_, _ = h.Write(b)
+	binary.BigEndian.PutUint64(lenBuf[:], uint64(len(part)))
+	b.Write(lenBuf[:])
+	b.Write(part)
 }
 
 func ExtractParams(req map[string]any) map[string]any {

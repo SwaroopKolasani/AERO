@@ -2,18 +2,39 @@ package key
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	sp "github.com/tggo/goSentencePiece"
 )
 
 type HuggingFaceTokenizer struct {
-	tok *sp.Tokenizer
+	tok interface {
+		Encode(string) ([]int, error)
+	}
 }
 
-func NewHuggingFaceTokenizer(tokenizerJSONPath string) (*HuggingFaceTokenizer, error) {
-	tok, err := sp.NewTokenizerFromJSON(tokenizerJSONPath)
+func NewHuggingFaceTokenizer(tokenizerPath string) (*HuggingFaceTokenizer, error) {
+	ext := strings.ToLower(filepath.Ext(tokenizerPath))
+
+	var (
+		tok interface {
+			Encode(string) ([]int, error)
+		}
+		err error
+	)
+
+	switch ext {
+	case ".json":
+		tok, err = sp.NewTokenizerFromJSON(tokenizerPath)
+	case ".model":
+		tok, err = sp.NewTokenizer(tokenizerPath)
+	default:
+		return nil, fmt.Errorf("unsupported tokenizer format %q; expected tokenizer.json or sentencepiece .model", ext)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("load tokenizer.json: %w", err)
+		return nil, fmt.Errorf("load tokenizer %s: %w", tokenizerPath, err)
 	}
 
 	return &HuggingFaceTokenizer{tok: tok}, nil

@@ -3,6 +3,7 @@ module aero-cache
 go 1.26.4
 
 require (
+	github.com/agentstation/tokenizer v0.0.8
 	github.com/dgraph-io/ristretto v0.2.0
 	github.com/klauspost/compress v1.18.6
 	github.com/prometheus/client_golang v1.23.2

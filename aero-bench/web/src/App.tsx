@@ -404,7 +404,7 @@ function shorten(v: string | null): string | null {
 }
 
 export default function App() {
-  const [model, setModel] = useState("tiny");
+  const [model, setModel] = useState("llama3.2:3b");
   const [prompt, setPrompt] = useState("Say exactly: pong");
   const [maxTokens, setMaxTokens] = useState(32);
   const [temperature, setTemperature] = useState(0);

@@ -2,6 +2,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -163,12 +164,61 @@ func buildStores() ([]lookup.Tier, []store.Store) {
 		}
 	}
 
-	l3 := l3r2.NewDisabled()
+	if getenvLocal("AERO_L3_ENABLED", "") != "1" {
+		log.Printf("aerocache: L3 R2 disabled")
+
+		tiers = append(tiers, lookup.Tier{
+			Store:  l3r2.NewDisabled(),
+			Budget: 50 * time.Millisecond,
+		})
+
+		return tiers, writeStores
+	}
+
+	l3Timeout := 750 * time.Millisecond
+	if raw := getenvLocal("AERO_L3_TIMEOUT", ""); raw != "" {
+		if parsed, err := time.ParseDuration(raw); err == nil {
+			l3Timeout = parsed
+		}
+	}
+
+	l3MinBytes := 0
+	if raw := getenvLocal("AERO_L3_MIN_BYTES", ""); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			l3MinBytes = parsed
+		}
+	}
+
+	l3, err := l3r2.New(context.Background(), l3r2.Config{
+		Enabled:         true,
+		Endpoint:        getenvLocal("AERO_R2_ENDPOINT", ""),
+		Bucket:          getenvLocal("AERO_R2_BUCKET", ""),
+		Region:          getenvLocal("AERO_R2_REGION", "auto"),
+		AccessKeyID:     getenvLocal("AERO_R2_ACCESS_KEY_ID", ""),
+		SecretAccessKey: getenvLocal("AERO_R2_SECRET_ACCESS_KEY", ""),
+		Prefix:          getenvLocal("AERO_R2_PREFIX", "aerocache/l3"),
+		Timeout:         l3Timeout,
+		MinBytes:        l3MinBytes,
+	})
+	if err != nil {
+		log.Printf("aerocache: L3 R2 unavailable; continuing without L3: %v", err)
+
+		tiers = append(tiers, lookup.Tier{
+			Store:  l3r2.NewDisabled(),
+			Budget: 50 * time.Millisecond,
+		})
+
+		return tiers, writeStores
+	}
+
+	log.Printf("aerocache: L3 R2 enabled")
 
 	tiers = append(tiers, lookup.Tier{
 		Store:  l3,
-		Budget: 50 * time.Millisecond,
+		Budget: l3Timeout,
 	})
+
+	writeStores = append(writeStores, l3)
 
 	return tiers, writeStores
 }
@@ -720,4 +770,22 @@ func (w *trackedResponseWriter) StatusCode() int {
 	}
 
 	return w.statusCode
+}
+
+func getenvInt(key string, fallback int) int {
+	v := getenv(key, "")
+	if v == "" {
+		return fallback
+	}
+
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+
+	return n
+}
+
+func getenv(key string, fallback string) string {
+	return getenvLocal(key, fallback)
 }

@@ -16,6 +16,7 @@ type TokenizerBundleConfig struct {
 	TokenizerConfigPath string
 	ChatTemplatePath    string
 	ChatTemplateKind    string
+	ChatTemplateDate    string
 }
 
 type TokenizerBundle struct {
@@ -28,6 +29,7 @@ type TokenizerBundle struct {
 	ChatTemplatePath      string
 	ChatTemplateSHA256    string
 	ChatTemplateKind      string
+	ChatTemplateDate      string
 }
 
 func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
@@ -101,7 +103,9 @@ func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
 			return nil, err
 		}
 
-		renderer = Llama3Renderer{}
+		renderer = Llama3Renderer{
+			DateString: cfg.ChatTemplateDate,
+		}
 
 	default:
 		if cfg.TokenizerPath == "" {
@@ -126,6 +130,7 @@ func LoadTokenizerBundle(cfg TokenizerBundleConfig) (*TokenizerBundle, error) {
 		ChatTemplatePath:      templatePath,
 		ChatTemplateSHA256:    templateHash,
 		ChatTemplateKind:      kind,
+		ChatTemplateDate:      cfg.ChatTemplateDate,
 	}, nil
 }
 

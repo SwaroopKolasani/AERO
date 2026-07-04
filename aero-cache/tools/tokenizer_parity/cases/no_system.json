@@ -2,12 +2,8 @@
   "model": "unsloth/Llama-3.2-3B-Instruct",
   "messages": [
     {
-      "role": "system",
-      "content": "You are concise."
-    },
-    {
       "role": "user",
-      "content": "Say exactly pong."
+      "content": "Hello!"
     }
   ],
   "expected_tokens": [
@@ -36,25 +32,19 @@
     2366,
     21,
     271,
-    2675,
-    527,
-    64694,
-    13,
     128009,
     128006,
     882,
     128007,
     271,
-    46864,
-    7041,
-    78722,
-    13,
+    9906,
+    0,
     128009,
     128006,
     78191,
     128007,
     271
   ],
-  "expected_count": 43,
+  "expected_count": 37,
   "date_string": "04 Jul 2026"
 }

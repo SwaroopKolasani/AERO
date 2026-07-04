@@ -7,17 +7,27 @@ import (
 	"strings"
 )
 
-const llama3DefaultDateString = "02 Jul 2026"
+const llama3FallbackDateString = "02 Jul 2026"
 
-type Llama3Renderer struct{}
+type Llama3Renderer struct {
+	DateString string
+}
 
 func (Llama3Renderer) Name() string {
 	return "llama3"
 }
 
-func (Llama3Renderer) Render(req map[string]any) (string, error) {
+func (r Llama3Renderer) dateString() string {
+	if strings.TrimSpace(r.DateString) == "" {
+		return llama3FallbackDateString
+	}
+
+	return strings.TrimSpace(r.DateString)
+}
+
+func (r Llama3Renderer) Render(req map[string]any) (string, error) {
 	if messagesRaw, ok := req["messages"]; ok {
-		return renderLlama3Messages(req, messagesRaw)
+		return renderLlama3Messages(req, messagesRaw, r.dateString())
 	}
 
 	if promptRaw, ok := req["prompt"]; ok {
@@ -31,7 +41,7 @@ func (Llama3Renderer) Render(req map[string]any) (string, error) {
 	return "", errors.New("request has no messages, prompt, or input")
 }
 
-func renderLlama3Messages(req map[string]any, v any) (string, error) {
+func renderLlama3Messages(req map[string]any, v any, dateString string) (string, error) {
 	messages, ok := v.([]any)
 	if !ok {
 		return "", errors.New("messages must be an array")
@@ -68,7 +78,7 @@ func renderLlama3Messages(req map[string]any, v any) (string, error) {
 
 	b.WriteString("Cutting Knowledge Date: December 2023\n")
 	b.WriteString("Today Date: ")
-	b.WriteString(llama3DefaultDateString)
+	b.WriteString(dateString)
 	b.WriteString("\n\n")
 
 	if hasTools && tools != nil && !toolsInUserMessage {

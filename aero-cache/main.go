@@ -23,19 +23,23 @@ func main() {
 
 	reg := metrics.NewRegistry()
 
+	chatTemplateDate := getenv("AERO_CHAT_TEMPLATE_DATE", "02 Jul 2026")
+
 	tokenizerAvailable := false
 	tokenizer := key.Tokenizer(key.ByteTokenizer{})
 	renderer := key.Renderer(key.LegacyRenderer{})
 
 	fpConfig := map[string]any{
-		"dtype": getenv("AERO_FINGERPRINT_DTYPE", "cpu"),
-		"tp":    1,
+		"dtype":              getenv("AERO_FINGERPRINT_DTYPE", "cpu"),
+		"tp":                 1,
+		"chat_template_date": chatTemplateDate,
 	}
 
 	if dir := getenv("AERO_TOKENIZER_DIR", ""); dir != "" {
 		bundle, err := key.LoadTokenizerBundle(key.TokenizerBundleConfig{
 			Dir:              dir,
 			ChatTemplateKind: getenv("AERO_CHAT_TEMPLATE_KIND", ""),
+			ChatTemplateDate: chatTemplateDate,
 		})
 		if err != nil {
 			log.Printf("aerocache: tokenizer unavailable; cache will bypass: %v", err)
@@ -48,6 +52,7 @@ func main() {
 			fpConfig["tokenizer_config_sha256"] = bundle.TokenizerConfigSHA256
 			fpConfig["chat_template_sha256"] = bundle.ChatTemplateSHA256
 			fpConfig["chat_template_kind"] = bundle.ChatTemplateKind
+			fpConfig["chat_template_date"] = bundle.ChatTemplateDate
 		}
 	} else if getenv("AERO_ALLOW_BYTE_TOKENIZER", "") == "1" {
 		log.Printf("aerocache: using ByteTokenizer because AERO_ALLOW_BYTE_TOKENIZER=1")
@@ -56,6 +61,7 @@ func main() {
 
 		fpConfig["tokenizer"] = "byte-tokenizer-dev-only"
 		fpConfig["chat_template_kind"] = "legacy-dev-only"
+		fpConfig["chat_template_date"] = chatTemplateDate
 	}
 
 	handler := httpapi.NewRouter(httpapi.Config{

@@ -7,7 +7,15 @@
     },
     {
       "role": "user",
-      "content": "Say exactly pong."
+      "content": "Say pong."
+    },
+    {
+      "role": "assistant",
+      "content": "pong"
+    },
+    {
+      "role": "user",
+      "content": "Now say ping."
     }
   ],
   "expected_tokens": [
@@ -46,8 +54,22 @@
     128007,
     271,
     46864,
-    7041,
     78722,
+    13,
+    128009,
+    128006,
+    78191,
+    128007,
+    271,
+    60202,
+    128009,
+    128006,
+    882,
+    128007,
+    271,
+    7184,
+    2019,
+    31098,
     13,
     128009,
     128006,
@@ -55,6 +77,6 @@
     128007,
     271
   ],
-  "expected_count": 43,
+  "expected_count": 57,
   "date_string": "04 Jul 2026"
 }

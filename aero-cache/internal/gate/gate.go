@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"testing"
 )
 
 type Mode string
@@ -50,6 +51,10 @@ func (d *Decider) Evaluate(body []byte) Decision {
 	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {
 		return d.bypass("invalid_json")
+	}
+
+	if hasToolsOrToolCalls(req) {
+		return d.bypass("unsupported_tools")
 	}
 
 	if !d.tokenizerAvailable {
@@ -144,4 +149,59 @@ func (d Decision) String() string {
 		return fmt.Sprintf("cacheable:%s", d.Reason)
 	}
 	return fmt.Sprintf("bypass:%s", d.Reason)
+}
+
+func hasToolsOrToolCalls(req map[string]any) bool {
+	if _, ok := req["tools"]; ok {
+		return true
+	}
+
+	messagesRaw, ok := req["messages"]
+	if !ok {
+		return false
+	}
+
+	messages, ok := messagesRaw.([]any)
+	if !ok {
+		return false
+	}
+
+	for _, raw := range messages {
+		msg, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		if _, ok := msg["tool_calls"]; ok {
+			return true
+		}
+
+		if role, _ := msg["role"].(string); role == "tool" || role == "ipython" {
+			return true
+		}
+	}
+
+	return false
+}
+
+func TestStrictGateBypassesTools(t *testing.T) {
+	d := NewDecider(Config{
+		Mode:               ModeStrict,
+		TokenizerAvailable: true,
+	})
+
+	got := d.Evaluate([]byte(`{
+		"model": "tiny",
+		"messages": [{"role": "user", "content": "weather?"}],
+		"tools": [{"type":"function","function":{"name":"get_weather"}}],
+		"temperature": 0
+	}`))
+
+	if got.Cacheable {
+		t.Fatalf("expected bypass, got %#v", got)
+	}
+
+	if got.Reason != "unsupported_tools" {
+		t.Fatalf("expected unsupported_tools, got %q", got.Reason)
+	}
 }

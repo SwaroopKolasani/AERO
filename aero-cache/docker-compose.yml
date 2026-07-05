@@ -1,0 +1,17 @@
+services:
+  valkey:
+    image: valkey/valkey:8
+    container_name: aerocache-valkey
+    ports:
+      - "6379:6379"
+    command:
+      - "valkey-server"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "PING"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

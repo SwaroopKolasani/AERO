@@ -3,3 +3,143 @@ __pycache__/
 *.pyc
 *.egg-info/
 .DS_Store
+
+# OS/editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Go build/test artifacts
+/bin/
+/dist/
+/build/
+*.exe
+*.test
+*.out
+*.prof
+coverage.out
+coverage.html
+*.coverprofile
+
+# Go workspace/cache-ish local files
+go.work
+go.work.sum
+
+# Environment/secrets
+.env
+.env.*
+!.env.example
+*.env
+*.local
+*.secret
+*.secrets
+secrets/
+secret/
+credentials/
+creds/
+keys/
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Cloud credentials
+.aws/
+.aws/*
+.cloudflare/
+.r2/
+r2-credentials.json
+cloudflare-credentials.json
+aws-credentials.json
+credentials.json
+service-account.json
+*-service-account.json
+
+# AeroCache local credentials/config
+aero.env
+aerocache.env
+aero-cache.env
+local.env
+dev.env
+prod.env
+production.env
+staging.env
+
+# Tokenizer/model local files
+# Keep these local unless intentionally versioning a small fixture.
+model-tokenizer/
+models/
+*.safetensors
+*.bin
+*.gguf
+*.pt
+*.pth
+*.onnx
+*.model
+
+# Hugging Face / model caches
+.cache/
+huggingface/
+.huggingface/
+hf_cache/
+transformers_cache/
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node/web artifacts
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+web/dist/
+web/.vite/
+
+# Docker/local runtime
+docker-data/
+data/
+tmp/
+temp/
+logs/
+*.log
+*.pid
+
+# Valkey/Redis local data
+dump.rdb
+appendonly.aof
+appendonlydir/
+
+# Generated benchmark/load outputs
+bench-results/
+load-results/
+results/
+*.bench.json
+*.load.json
+
+# AeroCache local cache/debug dumps
+cache-dumps/
+cache_dump/
+*.gob
+*.zst
+*.zstd
+
+# Test artifacts
+*.tmp
+*.bak
+*.orig

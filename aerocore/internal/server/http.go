@@ -10,10 +10,15 @@ import (
 	"github.com/swaroop/aero/aerocore/internal/registry"
 )
 
+type Config struct {
+	DefaultUpstreamURL string
+}
+
 type Server struct {
 	reg      *registry.MemoryRegistry
 	resolver *placement.Resolver
 	mux      *http.ServeMux
+	config   Config
 }
 
 type healthPatchRequest struct {
@@ -21,10 +26,18 @@ type healthPatchRequest struct {
 }
 
 func New(reg *registry.MemoryRegistry) *Server {
+	return NewWithConfig(reg, Config{})
+}
+
+func NewWithConfig(reg *registry.MemoryRegistry, config Config) *Server {
 	s := &Server{
-		reg:      reg,
-		resolver: placement.NewResolver(reg),
-		mux:      http.NewServeMux(),
+		reg: reg,
+		resolver: placement.NewResolver(
+			reg,
+			placement.WithDefaultUpstreamURL(config.DefaultUpstreamURL),
+		),
+		mux:    http.NewServeMux(),
+		config: config,
 	}
 
 	s.mux.HandleFunc("/healthz", s.handleHealthz)

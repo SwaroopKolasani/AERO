@@ -269,3 +269,37 @@ func TestResolveResponseIncludesBackendURLOverHTTP(t *testing.T) {
 		t.Fatalf("expected backend_url, got %+v", got)
 	}
 }
+func TestResolveFailOpenIncludesConfiguredDefaultUpstreamURLOverHTTP(t *testing.T) {
+	srv := NewWithConfig(registry.NewMemoryRegistry(), Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	body := []byte(`{
+		"request_id": "req_fail_open_with_url",
+		"model": "llama3.2:3b",
+		"deadline_ms": 2000,
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got placement.PlacementResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode resolve response: %v", err)
+	}
+
+	if got.Decision != placement.DecisionFailOpen {
+		t.Fatalf("expected fail-open, got %+v", got)
+	}
+
+	if got.BackendURL != "http://localhost:11434" {
+		t.Fatalf("expected configured default upstream URL, got %+v", got)
+	}
+}

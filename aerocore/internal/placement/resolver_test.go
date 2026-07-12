@@ -210,7 +210,6 @@ func TestRouteResponseIncludesBackendURL(t *testing.T) {
 			ID:            "mac-m2-ollama",
 			URL:           "http://mac.local:11434",
 			Rung:          RungFleet,
-			URL:           "http://mac.local:11434",
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
 			P95LatencyMS:  900,
@@ -246,5 +245,29 @@ func TestBackendWithoutURLIsSkipped(t *testing.T) {
 
 	if got.Decision != DecisionFailOpen {
 		t.Fatalf("expected fail-open because backend has no URL, got %+v", got)
+	}
+}
+func TestFailOpenIncludesConfiguredDefaultUpstreamURL(t *testing.T) {
+	src := fakeBackendSource{backends: nil}
+
+	got := NewResolver(
+		src,
+		WithDefaultUpstreamURL("http://localhost:11434"),
+	).Resolve(baseRequest())
+
+	if got.Decision != DecisionFailOpen {
+		t.Fatalf("expected fail-open, got %+v", got)
+	}
+
+	if got.BackendID != "default-upstream" {
+		t.Fatalf("expected default upstream backend id, got %+v", got)
+	}
+
+	if got.BackendURL != "http://localhost:11434" {
+		t.Fatalf("expected configured default upstream URL, got %+v", got)
+	}
+
+	if got.Rung != RungUpstream {
+		t.Fatalf("expected upstream rung, got %+v", got)
 	}
 }

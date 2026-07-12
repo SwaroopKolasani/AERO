@@ -4,16 +4,33 @@ import (
 	"sort"
 )
 
+const defaultUpstreamBackendID = "default-upstream"
+
 type BackendSource interface {
 	ListBackends() []Backend
 }
 
 type Resolver struct {
-	source BackendSource
+	source             BackendSource
+	defaultUpstreamURL string
 }
 
-func NewResolver(source BackendSource) *Resolver {
-	return &Resolver{source: source}
+type ResolverOption func(*Resolver)
+
+func WithDefaultUpstreamURL(url string) ResolverOption {
+	return func(r *Resolver) {
+		r.defaultUpstreamURL = url
+	}
+}
+
+func NewResolver(source BackendSource, opts ...ResolverOption) *Resolver {
+	r := &Resolver{source: source}
+
+	for _, opt := range opts {
+		opt(r)
+	}
+
+	return r
 }
 
 func (r *Resolver) Resolve(req PlacementRequest) PlacementResponse {
@@ -59,12 +76,13 @@ func (r *Resolver) Resolve(req PlacementRequest) PlacementResponse {
 
 	if len(candidates) == 0 {
 		return PlacementResponse{
-			RequestID: req.RequestID,
-			Decision:  DecisionFailOpen,
-			BackendID: "default-upstream",
-			Rung:      RungUpstream,
-			Reason:    "no_healthy_capable_backend",
-			FailOpen:  true,
+			RequestID:  req.RequestID,
+			Decision:   DecisionFailOpen,
+			BackendID:  defaultUpstreamBackendID,
+			BackendURL: r.defaultUpstreamURL,
+			Rung:       RungUpstream,
+			Reason:     "no_healthy_capable_backend",
+			FailOpen:   true,
 		}
 	}
 

@@ -1,5 +1,7 @@
 package placement
 
+import "time"
+
 type Rung string
 
 const (
@@ -43,15 +45,16 @@ type PlacementResponse struct {
 }
 
 type Backend struct {
-	ID              string   `json:"id"`
-	Rung            Rung     `json:"rung"`
-	URL             string   `json:"url"`
-	Healthy         bool     `json:"healthy"`
-	LoadedModels    []string `json:"loaded_models"`
-	CapableModels   []string `json:"capable_models"`
-	CostPer1KTokens float64  `json:"cost_per_1k_tokens"`
-	P50LatencyMS    int      `json:"p50_latency_ms"`
-	P95LatencyMS    int      `json:"p95_latency_ms"`
-	MaxContext       int      `json:"max_context"`
-	Weight          int      `json:"weight"`
+	ID              string    `json:"id"`
+	Rung            Rung      `json:"rung"`
+	URL             string    `json:"url"`
+	Healthy         bool      `json:"healthy"`
+	LoadedModels    []string  `json:"loaded_models"`
+	CapableModels   []string  `json:"capable_models"`
+	CostPer1KTokens float64   `json:"cost_per_1k_tokens"`
+	P50LatencyMS    int       `json:"p50_latency_ms"`
+	P95LatencyMS    int       `json:"p95_latency_ms"`
+	MaxContext      int       `json:"max_context"`
+	Weight          int       `json:"weight"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }

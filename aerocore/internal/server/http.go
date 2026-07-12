@@ -16,6 +16,10 @@ type Server struct {
 	mux      *http.ServeMux
 }
 
+type healthPatchRequest struct {
+	Healthy bool `json:"healthy"`
+}
+
 func New(reg *registry.MemoryRegistry) *Server {
 	s := &Server{
 		reg:      reg,
@@ -56,11 +60,24 @@ func (s *Server) handleBackends(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleBackendByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	path := strings.TrimPrefix(r.URL.Path, "/backends/")
+
+	if strings.HasSuffix(path, "/health") {
+		s.handleBackendHealth(w, r)
 		return
 	}
 
+	switch r.Method {
+	case http.MethodPut:
+		s.handlePutBackend(w, r)
+	case http.MethodDelete:
+		s.handleDeleteBackend(w, r)
+	default:
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+	}
+}
+
+func (s *Server) handlePutBackend(w http.ResponseWriter, r *http.Request) {
 	id, err := backendIDFromPath(r.URL.Path)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -84,6 +101,48 @@ func (s *Server) handleBackendByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, b)
 }
 
+func (s *Server) handleDeleteBackend(w http.ResponseWriter, r *http.Request) {
+	id, err := backendIDFromPath(r.URL.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if !s.reg.DeleteBackend(id) {
+		writeError(w, http.StatusNotFound, "backend_not_found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) handleBackendHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	id, err := backendIDFromHealthPath(r.URL.Path)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var req healthPatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	b, ok := s.reg.SetHealth(id, req.Healthy)
+	if !ok {
+		writeError(w, http.StatusNotFound, "backend_not_found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, b)
+}
+
 func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
@@ -102,6 +161,18 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 func backendIDFromPath(path string) (string, error) {
 	id := strings.TrimPrefix(path, "/backends/")
+	id = strings.TrimSpace(id)
+
+	if id == "" || strings.Contains(id, "/") {
+		return "", errors.New("invalid_backend_id")
+	}
+
+	return id, nil
+}
+
+func backendIDFromHealthPath(path string) (string, error) {
+	id := strings.TrimPrefix(path, "/backends/")
+	id = strings.TrimSuffix(id, "/health")
 	id = strings.TrimSpace(id)
 
 	if id == "" || strings.Contains(id, "/") {

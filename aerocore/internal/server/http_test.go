@@ -168,3 +168,63 @@ func TestPutBackendRejectsPathBodyMismatch(t *testing.T) {
 		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
+func TestPatchBackendHealth(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	reg.UpsertBackend(placement.Backend{
+		ID:      "mac-m2-ollama",
+		Rung:    placement.RungFleet,
+		Healthy: true,
+	})
+
+	srv := New(reg)
+
+	body := []byte(`{
+		"healthy": false
+	}`)
+
+	req := httptest.NewRequest(http.MethodPatch, "/backends/mac-m2-ollama/health", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got placement.Backend
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode backend: %v", err)
+	}
+
+	if got.Healthy {
+		t.Fatalf("expected backend unhealthy, got %+v", got)
+	}
+
+	if got.UpdatedAt.IsZero() {
+		t.Fatalf("expected updated_at, got %+v", got)
+	}
+}
+
+func TestDeleteBackendOverHTTP(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	reg.UpsertBackend(placement.Backend{
+		ID:      "mac-m2-ollama",
+		Rung:    placement.RungFleet,
+		Healthy: true,
+	})
+
+	srv := New(reg)
+
+	req := httptest.NewRequest(http.MethodDelete, "/backends/mac-m2-ollama", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if _, ok := reg.GetBackend("mac-m2-ollama"); ok {
+		t.Fatal("expected backend deleted")
+	}
+}

@@ -232,7 +232,7 @@ func TestBackendWithoutURLIsSkipped(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:            "mac-m2-ollama",
-			URL:           "http://mac.local:11434",
+			URL:           "",
 			Rung:          RungFleet,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},

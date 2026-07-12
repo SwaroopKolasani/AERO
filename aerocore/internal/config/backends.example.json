@@ -1,0 +1,25 @@
+{
+  "backends": [
+    {
+      "id": "mac-m2-ollama",
+      "rung": "fleet",
+      "url": "http://mac.local:11434",
+      "healthy": true,
+      "loaded_models": ["llama3.2:3b"],
+      "capable_models": ["llama3.2:3b"],
+      "cost_per_1k_tokens": 0,
+      "p95_latency_ms": 900,
+      "max_context": 8192
+    },
+    {
+      "id": "cloud-gate",
+      "rung": "gate",
+      "url": "https://cloud.example/v1",
+      "healthy": false,
+      "capable_models": ["llama3.2:70b"],
+      "cost_per_1k_tokens": 0.01,
+      "p95_latency_ms": 1200,
+      "max_context": 32768
+    }
+  ]
+}

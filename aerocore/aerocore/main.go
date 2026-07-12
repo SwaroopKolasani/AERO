@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/swaroop/aero/aerocore/internal/config"
 	"github.com/swaroop/aero/aerocore/internal/registry"
 	"github.com/swaroop/aero/aerocore/internal/server"
 )
@@ -17,6 +18,21 @@ func main() {
 	}
 
 	reg := registry.NewMemoryRegistry()
+
+	backendsFile := os.Getenv("AEROCORE_BACKENDS_FILE")
+	if backendsFile != "" {
+		backends, err := config.LoadBackends(backendsFile)
+		if err != nil {
+			log.Fatalf("load backends file: %v", err)
+		}
+
+		for _, b := range backends {
+			reg.UpsertBackend(b)
+		}
+
+		log.Printf("aerocore loaded %d backend(s) from %s", len(backends), backendsFile)
+	}
+
 	srv := server.NewWithConfig(reg, server.Config{
 		DefaultUpstreamURL: defaultUpstreamURL,
 	})

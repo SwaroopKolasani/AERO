@@ -633,3 +633,122 @@ func TestResolveRejectsUnknownTier(t *testing.T) {
 		t.Fatalf("expected invalid_tier error, got %s", rec.Body.String())
 	}
 }
+func TestResponseIncludesGeneratedAeroCoreRequestID(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := rec.Header().Get("X-AeroCore-Request-Id")
+	if got == "" {
+		t.Fatal("expected X-AeroCore-Request-Id header")
+	}
+
+	if !strings.HasPrefix(got, "aerocore-") {
+		t.Fatalf("expected generated aerocore request id, got %q", got)
+	}
+}
+
+func TestResponsePreservesIncomingAeroRequestID(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("X-Aero-Request-Id", "req_from_aerocache")
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := rec.Header().Get("X-AeroCore-Request-Id")
+	if got != "req_from_aerocache" {
+		t.Fatalf("expected preserved request id, got %q", got)
+	}
+}
+
+func TestResolveUsesJSONRequestIDWhenHeaderMissing(t *testing.T) {
+	srv := NewWithConfig(registry.NewMemoryRegistry(), Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	body := []byte(`{
+		"request_id": "req_from_json",
+		"model": "llama3.2:3b",
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := rec.Header().Get("X-AeroCore-Request-Id")
+	if got != "req_from_json" {
+		t.Fatalf("expected JSON request_id to become trace id, got %q", got)
+	}
+}
+
+func TestIncomingHeaderWinsOverJSONRequestID(t *testing.T) {
+	srv := NewWithConfig(registry.NewMemoryRegistry(), Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	body := []byte(`{
+		"request_id": "req_from_json",
+		"model": "llama3.2:3b",
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	req.Header.Set("X-Aero-Request-Id", "req_from_header")
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := rec.Header().Get("X-AeroCore-Request-Id")
+	if got != "req_from_header" {
+		t.Fatalf("expected incoming header to win, got %q", got)
+	}
+}
+
+func TestErrorResponseIncludesRequestID(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"request_id": "req_bad_model",
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if rec.Header().Get("X-AeroCore-Request-Id") != "req_bad_model" {
+		t.Fatalf("expected request id header from JSON, got %q", rec.Header().Get("X-AeroCore-Request-Id"))
+	}
+
+	if !strings.Contains(rec.Body.String(), `"request_id":"req_bad_model"`) {
+		t.Fatalf("expected request_id in error body, got %s", rec.Body.String())
+	}
+}

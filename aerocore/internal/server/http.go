@@ -9,6 +9,7 @@ import (
 	"github.com/swaroop/aero/aerocore/internal/metrics"
 	"github.com/swaroop/aero/aerocore/internal/placement"
 	"github.com/swaroop/aero/aerocore/internal/registry"
+	"github.com/swaroop/aero/aerocore/internal/trace"
 	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
@@ -71,6 +72,12 @@ func NewWithConfig(reg *registry.MemoryRegistry, config Config) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	requestID := trace.NormalizeRequestID(r.Header.Get(trace.IncomingRequestIDHeader))
+	if requestID == "" {
+		requestID = trace.NewRequestID()
+	}
+
+	setCoreRequestID(w, requestID)
 	s.mux.ServeHTTP(w, r)
 }
 
@@ -237,6 +244,12 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if r.Header.Get(trace.IncomingRequestIDHeader) == "" {
+		if requestID := trace.NormalizeRequestID(req.RequestID); requestID != "" {
+			setCoreRequestID(w, requestID)
+		}
+	}
+
 	if err := api.ValidatePlacementRequest(req); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -332,8 +345,26 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	_ = json.NewEncoder(w).Encode(value)
 }
 
+func setCoreRequestID(w http.ResponseWriter, requestID string) {
+	if requestID == "" {
+		return
+	}
+
+	w.Header().Set(trace.CoreRequestIDHeader, requestID)
+}
+
+func currentCoreRequestID(w http.ResponseWriter) string {
+	return w.Header().Get(trace.CoreRequestIDHeader)
+}
+
 func writeError(w http.ResponseWriter, status int, code string) {
-	writeJSON(w, status, map[string]string{
+	body := map[string]string{
 		"error": code,
-	})
+	}
+
+	if requestID := currentCoreRequestID(w); requestID != "" {
+		body["request_id"] = requestID
+	}
+
+	writeJSON(w, status, body)
 }

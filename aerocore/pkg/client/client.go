@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/swaroop/aero/aerocore/internal/placement"
+	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
 const defaultTimeout = 2 * time.Second
@@ -52,8 +52,8 @@ func New(baseURL string, opts ...Option) *Client {
 	return c
 }
 
-func (c *Client) Resolve(ctx context.Context, req placement.PlacementRequest) (placement.PlacementResponse, error) {
-	var resp placement.PlacementResponse
+func (c *Client) Resolve(ctx context.Context, req api.PlacementRequest) (api.PlacementResponse, error) {
+	var resp api.PlacementResponse
 
 	if c.baseURL == "" {
 		return resp, fmt.Errorf("aerocore base url is empty")

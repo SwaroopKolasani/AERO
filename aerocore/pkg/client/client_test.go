@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/swaroop/aero/aerocore/internal/placement"
+	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
 func TestResolve(t *testing.T) {
@@ -20,7 +20,7 @@ func TestResolve(t *testing.T) {
 			t.Fatalf("expected /resolve, got %s", r.URL.Path)
 		}
 
-		var req placement.PlacementRequest
+		var req api.PlacementRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
@@ -29,12 +29,12 @@ func TestResolve(t *testing.T) {
 			t.Fatalf("unexpected request: %+v", req)
 		}
 
-		_ = json.NewEncoder(w).Encode(placement.PlacementResponse{
+		_ = json.NewEncoder(w).Encode(api.PlacementResponse{
 			RequestID:  req.RequestID,
-			Decision:   placement.DecisionRoute,
+			Decision:   api.DecisionRoute,
 			BackendID:  "mac-m2-ollama",
 			BackendURL: "http://mac.local:11434",
-			Rung:       placement.RungFleet,
+			Rung:       api.RungFleet,
 			Reason:     "cheapest_healthy_capable_backend",
 			FailOpen:   false,
 		})
@@ -43,16 +43,16 @@ func TestResolve(t *testing.T) {
 
 	c := New(srv.URL)
 
-	got, err := c.Resolve(context.Background(), placement.PlacementRequest{
+	got, err := c.Resolve(context.Background(), api.PlacementRequest{
 		RequestID: "req_client",
 		Model:     "llama3.2:3b",
-		Tier:      placement.TierA,
+		Tier:      api.TierA,
 	})
 	if err != nil {
 		t.Fatalf("Resolve returned error: %v", err)
 	}
 
-	if got.Decision != placement.DecisionRoute {
+	if got.Decision != api.DecisionRoute {
 		t.Fatalf("expected route, got %+v", got)
 	}
 
@@ -125,10 +125,10 @@ func TestConfig(t *testing.T) {
 func TestEmptyBaseURLFails(t *testing.T) {
 	c := New("")
 
-	_, err := c.Resolve(context.Background(), placement.PlacementRequest{
+	_, err := c.Resolve(context.Background(), api.PlacementRequest{
 		RequestID: "req_empty",
 		Model:     "llama3.2:3b",
-		Tier:      placement.TierA,
+		Tier:      api.TierA,
 	})
 
 	if err == nil {

@@ -72,13 +72,7 @@ func NewWithConfig(reg *registry.MemoryRegistry, config Config) *Server {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	requestID := trace.NormalizeRequestID(r.Header.Get(trace.IncomingRequestIDHeader))
-	if requestID == "" {
-		requestID = trace.NewRequestID()
-	}
-
-	setCoreRequestID(w, requestID)
-	s.mux.ServeHTTP(w, r)
+	s.serveWithAccessLog(w, r)
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {

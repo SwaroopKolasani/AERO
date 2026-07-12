@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -750,5 +751,74 @@ func TestErrorResponseIncludesRequestID(t *testing.T) {
 
 	if !strings.Contains(rec.Body.String(), `"request_id":"req_bad_model"`) {
 		t.Fatalf("expected request_id in error body, got %s", rec.Body.String())
+	}
+}
+func TestAccessLogIncludesRequestFields(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(oldOutput)
+
+	srv := New(registry.NewMemoryRegistry())
+
+	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+	req.Header.Set("X-Aero-Request-Id", "req_log_test")
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := buf.String()
+
+	for _, want := range []string{
+		"aerocore_access",
+		"request_id=req_log_test",
+		"method=GET",
+		"path=/healthz",
+		"status=200",
+		"bytes=",
+		"duration_ms=",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected log to contain %q, got %s", want, got)
+		}
+	}
+}
+
+func TestAccessLogIncludesErrorStatus(t *testing.T) {
+	var buf bytes.Buffer
+	oldOutput := log.Writer()
+	log.SetOutput(&buf)
+	defer log.SetOutput(oldOutput)
+
+	srv := New(registry.NewMemoryRegistry())
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader([]byte(`{
+		"request_id": "req_log_error",
+		"tier": "A"
+	}`)))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	got := buf.String()
+
+	for _, want := range []string{
+		"aerocore_access",
+		"request_id=req_log_error",
+		"method=POST",
+		"path=/resolve",
+		"status=400",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected log to contain %q, got %s", want, got)
+		}
 	}
 }

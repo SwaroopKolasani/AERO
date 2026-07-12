@@ -1,27 +1,30 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/swaroop/aero/aerocore/internal/config"
 	"github.com/swaroop/aero/aerocore/internal/registry"
+	"github.com/swaroop/aero/aerocore/internal/runtimeconfig"
 	"github.com/swaroop/aero/aerocore/internal/server"
 )
 
 func main() {
-	addr := getenvDefault("AEROCORE_ADDR", ":8088")
-	defaultUpstreamURL := os.Getenv("AEROCORE_DEFAULT_UPSTREAM_URL")
-	if defaultUpstreamURL == "" {
-		defaultUpstreamURL = os.Getenv("AERO_UPSTREAM_URL")
+	cfg, err := runtimeconfig.Load(os.Getenv)
+	if err != nil {
+		log.Fatalf("load runtime config: %v", err)
 	}
 
 	reg := registry.NewMemoryRegistry()
 
-	backendsFile := os.Getenv("AEROCORE_BACKENDS_FILE")
-	if backendsFile != "" {
-		backends, err := config.LoadBackends(backendsFile)
+	if cfg.BackendsFile != "" {
+		backends, err := config.LoadBackends(cfg.BackendsFile)
 		if err != nil {
 			log.Fatalf("load backends file: %v", err)
 		}
@@ -30,29 +33,60 @@ func main() {
 			reg.UpsertBackend(b)
 		}
 
-		log.Printf("aerocore loaded %d backend(s) from %s", len(backends), backendsFile)
+		log.Printf("aerocore loaded %d backend(s) from %s", len(backends), cfg.BackendsFile)
 	}
 
-	srv := server.NewWithConfig(reg, server.Config{
-		DefaultUpstreamURL: defaultUpstreamURL,
+	handler := server.NewWithConfig(reg, server.Config{
+		DefaultUpstreamURL: cfg.DefaultUpstreamURL,
 	})
 
-	log.Printf("aerocore listening on %s", addr)
-	if defaultUpstreamURL != "" {
-		log.Printf("aerocore default upstream url configured")
-	} else {
-		log.Printf("aerocore default upstream url empty")
+	httpServer := &http.Server{
+		Addr:         cfg.Addr,
+		Handler:      handler,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
 	}
 
-	if err := http.ListenAndServe(addr, srv); err != nil {
-		log.Fatal(err)
-	}
-}
+	errCh := make(chan error, 1)
 
-func getenvDefault(key string, fallback string) string {
-	value := os.Getenv(key)
-	if value == "" {
-		return fallback
+	go func() {
+		log.Printf("aerocore listening on %s", cfg.Addr)
+		log.Printf("aerocore http timeouts read=%s write=%s idle=%s shutdown=%s",
+			cfg.ReadTimeout,
+			cfg.WriteTimeout,
+			cfg.IdleTimeout,
+			cfg.ShutdownTimeout,
+		)
+
+		if cfg.DefaultUpstreamURL != "" {
+			log.Printf("aerocore default upstream url configured")
+		} else {
+			log.Printf("aerocore default upstream url empty")
+		}
+
+		errCh <- httpServer.ListenAndServe()
+	}()
+
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case sig := <-signalCh:
+		log.Printf("aerocore shutdown signal=%s", sig)
+
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancel()
+
+		if err := httpServer.Shutdown(ctx); err != nil {
+			log.Fatalf("aerocore graceful shutdown failed: %v", err)
+		}
+
+		log.Printf("aerocore shutdown complete")
+
+	case err := <-errCh:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("aerocore server failed: %v", err)
+		}
 	}
-	return value
 }

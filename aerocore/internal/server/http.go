@@ -9,6 +9,7 @@ import (
 	"github.com/swaroop/aero/aerocore/internal/metrics"
 	"github.com/swaroop/aero/aerocore/internal/placement"
 	"github.com/swaroop/aero/aerocore/internal/registry"
+	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
 type Config struct {
@@ -168,6 +169,12 @@ func (s *Server) handlePutBackend(w http.ResponseWriter, r *http.Request) {
 	}
 
 	b.ID = id
+
+	if err := api.ValidateBackend(b); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
 	s.reg.UpsertBackend(b)
 	s.metrics.IncBackendMutation("upsert")
 
@@ -227,6 +234,11 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	var req placement.PlacementRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	if err := api.ValidatePlacementRequest(req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

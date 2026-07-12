@@ -76,7 +76,8 @@ func TestLoadBackendsRejectsMissingID(t *testing.T) {
 			{
 				"rung": "fleet",
 				"url": "http://mac.local:11434",
-				"healthy": true
+				"healthy": true,
+				"capable_models": ["llama3.2:3b"]
 			}
 		]
 	}`)
@@ -93,12 +94,14 @@ func TestLoadBackendsRejectsDuplicateID(t *testing.T) {
 			{
 				"id": "mac-m2-ollama",
 				"rung": "fleet",
-				"url": "http://mac.local:11434"
+				"url": "http://mac.local:11434",
+				"capable_models": ["llama3.2:3b"]
 			},
 			{
 				"id": "mac-m2-ollama",
 				"rung": "gate",
-				"url": "https://cloud.example/v1"
+				"url": "https://cloud.example/v1",
+				"capable_models": ["llama3.2:70b"]
 			}
 		]
 	}`)
@@ -106,6 +109,23 @@ func TestLoadBackendsRejectsDuplicateID(t *testing.T) {
 	_, err := LoadBackends(path)
 	if err == nil {
 		t.Fatal("expected duplicate id error")
+	}
+}
+
+func TestLoadBackendsRejectsMissingBackendURL(t *testing.T) {
+	path := writeTempFile(t, `{
+		"backends": [
+			{
+				"id": "mac-m2-ollama",
+				"rung": "fleet",
+				"capable_models": ["llama3.2:3b"]
+			}
+		]
+	}`)
+
+	_, err := LoadBackends(path)
+	if err == nil {
+		t.Fatal("expected missing backend URL error")
 	}
 }
 

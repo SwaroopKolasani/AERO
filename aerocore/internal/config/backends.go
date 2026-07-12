@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/swaroop/aero/aerocore/internal/placement"
+	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
 type backendFile struct {
@@ -54,12 +55,10 @@ func validateBackends(backends []placement.Backend) error {
 	seen := make(map[string]struct{}, len(backends))
 
 	for _, b := range backends {
-		if b.ID == "" {
-			return errors.New("backend id is required")
+		if err := api.ValidateBackend(b); err != nil {
+			return fmt.Errorf("backend %q invalid: %w", b.ID, err)
 		}
-		if b.Rung == "" {
-			return fmt.Errorf("backend %q rung is required", b.ID)
-		}
+
 		if _, ok := seen[b.ID]; ok {
 			return fmt.Errorf("duplicate backend id %q", b.ID)
 		}

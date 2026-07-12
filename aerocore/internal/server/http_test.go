@@ -521,3 +521,115 @@ func TestMetricsEndpointReportsResolveAndBackendMutationCounts(t *testing.T) {
 		t.Fatalf("missing ready gauge:\n%s", body)
 	}
 }
+func TestPutBackendRejectsMissingURL(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"rung": "fleet",
+		"healthy": true,
+		"capable_models": ["llama3.2:3b"]
+	}`)
+
+	req := httptest.NewRequest(http.MethodPut, "/backends/mac-m2-ollama", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), "backend_url_required") {
+		t.Fatalf("expected backend_url_required error, got %s", rec.Body.String())
+	}
+}
+
+func TestPutBackendRejectsMissingModels(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"rung": "fleet",
+		"url": "http://mac.local:11434",
+		"healthy": true
+	}`)
+
+	req := httptest.NewRequest(http.MethodPut, "/backends/mac-m2-ollama", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), "backend_model_required") {
+		t.Fatalf("expected backend_model_required error, got %s", rec.Body.String())
+	}
+}
+
+func TestResolveRejectsMissingRequestID(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"model": "llama3.2:3b",
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), "request_id_required") {
+		t.Fatalf("expected request_id_required error, got %s", rec.Body.String())
+	}
+}
+
+func TestResolveRejectsMissingModel(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"request_id": "req_missing_model",
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), "model_required") {
+		t.Fatalf("expected model_required error, got %s", rec.Body.String())
+	}
+}
+
+func TestResolveRejectsUnknownTier(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	body := []byte(`{
+		"request_id": "req_bad_tier",
+		"model": "llama3.2:3b",
+		"tier": "C"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	if !strings.Contains(rec.Body.String(), "invalid_tier") {
+		t.Fatalf("expected invalid_tier error, got %s", rec.Body.String())
+	}
+}

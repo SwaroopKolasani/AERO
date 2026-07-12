@@ -454,3 +454,70 @@ func TestConfigEndpointRedactsDefaultUpstreamURL(t *testing.T) {
 		t.Fatalf("config endpoint leaked upstream URL: %s", rec.Body.String())
 	}
 }
+func TestMetricsEndpointReportsResolveAndBackendMutationCounts(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	srv := NewWithConfig(reg, Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	putBody := []byte(`{
+		"rung": "fleet",
+		"url": "http://mac.local:11434",
+		"healthy": true,
+		"loaded_models": ["llama3.2:3b"],
+		"capable_models": ["llama3.2:3b"],
+		"p95_latency_ms": 900,
+		"max_context": 8192
+	}`)
+
+	putReq := httptest.NewRequest(http.MethodPut, "/backends/mac-m2-ollama", bytes.NewReader(putBody))
+	putRec := httptest.NewRecorder()
+	srv.ServeHTTP(putRec, putReq)
+
+	if putRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", putRec.Code, putRec.Body.String())
+	}
+
+	resolveBody := []byte(`{
+		"request_id": "req_metrics",
+		"model": "llama3.2:3b",
+		"deadline_ms": 2000,
+		"estimated_input_tokens": 512,
+		"estimated_output_tokens": 128,
+		"tier": "A"
+	}`)
+
+	resolveReq := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(resolveBody))
+	resolveRec := httptest.NewRecorder()
+	srv.ServeHTTP(resolveRec, resolveReq)
+
+	if resolveRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", resolveRec.Code, resolveRec.Body.String())
+	}
+
+	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsRec := httptest.NewRecorder()
+	srv.ServeHTTP(metricsRec, metricsReq)
+
+	if metricsRec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", metricsRec.Code, metricsRec.Body.String())
+	}
+
+	body := metricsRec.Body.String()
+
+	if !strings.Contains(body, `aerocore_backend_mutations_total{operation="upsert"} 1`) {
+		t.Fatalf("missing upsert metric:\n%s", body)
+	}
+
+	if !strings.Contains(body, `aerocore_resolve_total{decision="route",rung="fleet",fail_open="false"} 1`) {
+		t.Fatalf("missing route metric:\n%s", body)
+	}
+
+	if !strings.Contains(body, `aerocore_backends{state="healthy"} 1`) {
+		t.Fatalf("missing backend gauge:\n%s", body)
+	}
+
+	if !strings.Contains(body, "aerocore_ready 1") {
+		t.Fatalf("missing ready gauge:\n%s", body)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/swaroop/aero/aerocore/internal/metrics"
 	"github.com/swaroop/aero/aerocore/internal/placement"
 	"github.com/swaroop/aero/aerocore/internal/registry"
 )
@@ -19,6 +20,7 @@ type Server struct {
 	resolver *placement.Resolver
 	mux      *http.ServeMux
 	config   Config
+	metrics  *metrics.Metrics
 }
 
 type healthPatchRequest struct {
@@ -51,13 +53,15 @@ func NewWithConfig(reg *registry.MemoryRegistry, config Config) *Server {
 			reg,
 			placement.WithDefaultUpstreamURL(config.DefaultUpstreamURL),
 		),
-		mux:    http.NewServeMux(),
-		config: config,
+		mux:     http.NewServeMux(),
+		config:  config,
+		metrics: metrics.New(),
 	}
 
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
 	s.mux.HandleFunc("/readyz", s.handleReadyz)
 	s.mux.HandleFunc("/config", s.handleConfig)
+	s.mux.HandleFunc("/metrics", s.handleMetrics)
 	s.mux.HandleFunc("/backends", s.handleBackends)
 	s.mux.HandleFunc("/backends/", s.handleBackendByID)
 	s.mux.HandleFunc("/resolve", s.handleResolve)
@@ -102,6 +106,20 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, s.buildConfigResponse())
+}
+
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	ready := s.buildReadyResponse().Ready
+	body := s.metrics.Render(s.reg.ListBackends(), ready)
+
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(body))
 }
 
 func (s *Server) handleBackends(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +169,7 @@ func (s *Server) handlePutBackend(w http.ResponseWriter, r *http.Request) {
 
 	b.ID = id
 	s.reg.UpsertBackend(b)
+	s.metrics.IncBackendMutation("upsert")
 
 	writeJSON(w, http.StatusOK, b)
 }
@@ -167,6 +186,7 @@ func (s *Server) handleDeleteBackend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.metrics.IncBackendMutation("delete")
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -194,6 +214,7 @@ func (s *Server) handleBackendHealth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.metrics.IncBackendMutation("health_patch")
 	writeJSON(w, http.StatusOK, b)
 }
 
@@ -210,6 +231,8 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := s.resolver.Resolve(req)
+	s.metrics.IncResolve(resp)
+
 	writeJSON(w, http.StatusOK, resp)
 }
 

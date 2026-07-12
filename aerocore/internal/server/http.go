@@ -25,6 +25,21 @@ type healthPatchRequest struct {
 	Healthy bool `json:"healthy"`
 }
 
+type readyResponse struct {
+	Ready                     bool   `json:"ready"`
+	Reason                    string `json:"reason"`
+	BackendCount              int    `json:"backend_count"`
+	HealthyBackendCount       int    `json:"healthy_backend_count"`
+	DefaultUpstreamConfigured bool   `json:"default_upstream_configured"`
+}
+
+type configResponse struct {
+	DefaultUpstreamConfigured bool `json:"default_upstream_configured"`
+	BackendCount              int  `json:"backend_count"`
+	HealthyBackendCount       int  `json:"healthy_backend_count"`
+	StaleBackendCount         int  `json:"stale_backend_count"`
+}
+
 func New(reg *registry.MemoryRegistry) *Server {
 	return NewWithConfig(reg, Config{})
 }
@@ -41,6 +56,8 @@ func NewWithConfig(reg *registry.MemoryRegistry, config Config) *Server {
 	}
 
 	s.mux.HandleFunc("/healthz", s.handleHealthz)
+	s.mux.HandleFunc("/readyz", s.handleReadyz)
+	s.mux.HandleFunc("/config", s.handleConfig)
 	s.mux.HandleFunc("/backends", s.handleBackends)
 	s.mux.HandleFunc("/backends/", s.handleBackendByID)
 	s.mux.HandleFunc("/resolve", s.handleResolve)
@@ -61,6 +78,30 @@ func (s *Server) handleHealthz(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
+}
+
+func (s *Server) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	resp := s.buildReadyResponse()
+	if !resp.Ready {
+		writeJSON(w, http.StatusServiceUnavailable, resp)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, s.buildConfigResponse())
 }
 
 func (s *Server) handleBackends(w http.ResponseWriter, r *http.Request) {
@@ -170,6 +211,61 @@ func (s *Server) handleResolve(w http.ResponseWriter, r *http.Request) {
 
 	resp := s.resolver.Resolve(req)
 	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) buildReadyResponse() readyResponse {
+	backends := s.reg.ListBackends()
+	healthy := countHealthy(backends)
+	defaultUpstreamConfigured := s.config.DefaultUpstreamURL != ""
+
+	resp := readyResponse{
+		Ready:                     healthy > 0 || defaultUpstreamConfigured,
+		BackendCount:              len(backends),
+		HealthyBackendCount:       healthy,
+		DefaultUpstreamConfigured: defaultUpstreamConfigured,
+	}
+
+	switch {
+	case healthy > 0:
+		resp.Reason = "healthy_backend_available"
+	case defaultUpstreamConfigured:
+		resp.Reason = "default_upstream_available"
+	default:
+		resp.Reason = "no_healthy_backend_or_default_upstream"
+	}
+
+	return resp
+}
+
+func (s *Server) buildConfigResponse() configResponse {
+	backends := s.reg.ListBackends()
+
+	return configResponse{
+		DefaultUpstreamConfigured: s.config.DefaultUpstreamURL != "",
+		BackendCount:              len(backends),
+		HealthyBackendCount:       countHealthy(backends),
+		StaleBackendCount:         countStale(backends),
+	}
+}
+
+func countHealthy(backends []placement.Backend) int {
+	count := 0
+	for _, b := range backends {
+		if b.Healthy {
+			count++
+		}
+	}
+	return count
+}
+
+func countStale(backends []placement.Backend) int {
+	count := 0
+	for _, b := range backends {
+		if !b.Healthy {
+			count++
+		}
+	}
+	return count
 }
 
 func backendIDFromPath(path string) (string, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/swaroop/aero/aerocore/internal/placement"
@@ -301,5 +302,155 @@ func TestResolveFailOpenIncludesConfiguredDefaultUpstreamURLOverHTTP(t *testing.
 
 	if got.BackendURL != "http://localhost:11434" {
 		t.Fatalf("expected configured default upstream URL, got %+v", got)
+	}
+}
+func TestReadyzFailsWhenNoBackendAndNoDefaultUpstream(t *testing.T) {
+	srv := New(registry.NewMemoryRegistry())
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got readyResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode ready response: %v", err)
+	}
+
+	if got.Ready {
+		t.Fatalf("expected not ready, got %+v", got)
+	}
+
+	if got.Reason != "no_healthy_backend_or_default_upstream" {
+		t.Fatalf("unexpected reason, got %+v", got)
+	}
+}
+
+func TestReadyzPassesWithDefaultUpstream(t *testing.T) {
+	srv := NewWithConfig(registry.NewMemoryRegistry(), Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got readyResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode ready response: %v", err)
+	}
+
+	if !got.Ready {
+		t.Fatalf("expected ready, got %+v", got)
+	}
+
+	if !got.DefaultUpstreamConfigured {
+		t.Fatalf("expected default upstream configured, got %+v", got)
+	}
+}
+
+func TestReadyzPassesWithHealthyBackend(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	reg.UpsertBackend(placement.Backend{
+		ID:            "mac-m2-ollama",
+		Rung:          placement.RungFleet,
+		URL:           "http://mac.local:11434",
+		Healthy:       true,
+		CapableModels: []string{"llama3.2:3b"},
+		P95LatencyMS:  900,
+		MaxContext:    8192,
+	})
+
+	srv := New(reg)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got readyResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode ready response: %v", err)
+	}
+
+	if !got.Ready {
+		t.Fatalf("expected ready, got %+v", got)
+	}
+
+	if got.HealthyBackendCount != 1 {
+		t.Fatalf("expected one healthy backend, got %+v", got)
+	}
+}
+
+func TestConfigEndpointRedactsDefaultUpstreamURL(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	reg.UpsertBackend(placement.Backend{
+		ID:            "mac-m2-ollama",
+		Rung:          placement.RungFleet,
+		URL:           "http://mac.local:11434",
+		Healthy:       true,
+		CapableModels: []string{"llama3.2:3b"},
+		P95LatencyMS:  900,
+		MaxContext:    8192,
+	})
+	reg.UpsertBackend(placement.Backend{
+		ID:            "cloud-gate",
+		Rung:          placement.RungGate,
+		URL:           "https://cloud.example/v1",
+		Healthy:       false,
+		CapableModels: []string{"llama3.2:70b"},
+		P95LatencyMS:  1200,
+		MaxContext:    32768,
+	})
+
+	srv := NewWithConfig(reg, Config{
+		DefaultUpstreamURL: "http://localhost:11434",
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/config", nil)
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got configResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode config response: %v", err)
+	}
+
+	if !got.DefaultUpstreamConfigured {
+		t.Fatalf("expected default upstream configured, got %+v", got)
+	}
+
+	if got.BackendCount != 2 {
+		t.Fatalf("expected two backends, got %+v", got)
+	}
+
+	if got.HealthyBackendCount != 1 {
+		t.Fatalf("expected one healthy backend, got %+v", got)
+	}
+
+	if got.StaleBackendCount != 1 {
+		t.Fatalf("expected one stale backend, got %+v", got)
+	}
+
+	if strings.Contains(rec.Body.String(), "localhost:11434") {
+		t.Fatalf("config endpoint leaked upstream URL: %s", rec.Body.String())
 	}
 }

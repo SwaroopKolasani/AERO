@@ -26,6 +26,7 @@ func TestHealthyCapableMacWinsOverCloud(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:              "mac-m2-ollama",
+			URL:             "http://mac.local:11434",
 			Rung:            RungFleet,
 			Healthy:         true,
 			LoadedModels:    []string{"llama3.2:3b"},
@@ -35,6 +36,7 @@ func TestHealthyCapableMacWinsOverCloud(t *testing.T) {
 		},
 		{
 			ID:              "cloud-gate",
+			URL:             "https://cloud.example/v1",
 			Rung:            RungGate,
 			Healthy:         true,
 			CapableModels:   []string{"llama3.2:3b"},
@@ -55,6 +57,7 @@ func TestUnhealthyMacIsSkipped(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:           "mac-m2-ollama",
+			URL:          "http://mac.local:11434",
 			Rung:         RungFleet,
 			Healthy:      false,
 			LoadedModels: []string{"llama3.2:3b"},
@@ -62,6 +65,7 @@ func TestUnhealthyMacIsSkipped(t *testing.T) {
 		},
 		{
 			ID:            "cloud-gate",
+			URL:           "https://cloud.example/v1",
 			Rung:          RungGate,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
@@ -80,6 +84,7 @@ func TestIncapableMacIsSkipped(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:            "mac-m2-ollama",
+			URL:           "http://mac.local:11434",
 			Rung:          RungFleet,
 			Healthy:       true,
 			CapableModels: []string{"qwen2.5:3b"},
@@ -87,6 +92,7 @@ func TestIncapableMacIsSkipped(t *testing.T) {
 		},
 		{
 			ID:            "cloud-gate",
+			URL:           "https://cloud.example/v1",
 			Rung:          RungGate,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
@@ -105,6 +111,7 @@ func TestDeadlineFiltersSlowBackend(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:            "slow-mac",
+			URL:           "http://mac.local:11434",
 			Rung:          RungFleet,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
@@ -112,6 +119,7 @@ func TestDeadlineFiltersSlowBackend(t *testing.T) {
 		},
 		{
 			ID:            "fast-cloud",
+			URL:           "https://cloud.example/v1",
 			Rung:          RungGate,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
@@ -130,6 +138,7 @@ func TestCheaperBackendWinsBeforeFasterExpensiveBackend(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:              "free-mac",
+			URL:             "http://mac.local:11434",
 			Rung:            RungFleet,
 			Healthy:         true,
 			CapableModels:   []string{"llama3.2:3b"},
@@ -138,6 +147,7 @@ func TestCheaperBackendWinsBeforeFasterExpensiveBackend(t *testing.T) {
 		},
 		{
 			ID:              "paid-cloud",
+			URL:             "https://cloud.example/v1",
 			Rung:            RungGate,
 			Healthy:         true,
 			CapableModels:   []string{"llama3.2:3b"},
@@ -157,6 +167,7 @@ func TestFailOpenWhenNoBackendQualifies(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:            "wrong-model",
+			URL:           "http://mac.local:11434",
 			Rung:          RungFleet,
 			Healthy:       true,
 			CapableModels: []string{"qwen2.5:3b"},
@@ -175,6 +186,7 @@ func TestTierBRejectedInM3(t *testing.T) {
 	src := fakeBackendSource{backends: []Backend{
 		{
 			ID:            "mac-m2-ollama",
+			URL:           "http://mac.local:11434",
 			Rung:          RungFleet,
 			Healthy:       true,
 			CapableModels: []string{"llama3.2:3b"},
@@ -189,5 +201,50 @@ func TestTierBRejectedInM3(t *testing.T) {
 
 	if got.Decision != DecisionReject || got.Reason != "tier_b_not_supported_in_m3" {
 		t.Fatalf("expected Tier-B rejection, got %+v", got)
+	}
+}
+
+func TestRouteResponseIncludesBackendURL(t *testing.T) {
+	src := fakeBackendSource{backends: []Backend{
+		{
+			ID:            "mac-m2-ollama",
+			URL:           "http://mac.local:11434",
+			Rung:          RungFleet,
+			URL:           "http://mac.local:11434",
+			Healthy:       true,
+			CapableModels: []string{"llama3.2:3b"},
+			P95LatencyMS:  900,
+			MaxContext:    8192,
+		},
+	}}
+
+	got := NewResolver(src).Resolve(baseRequest())
+
+	if got.Decision != DecisionRoute {
+		t.Fatalf("expected route, got %+v", got)
+	}
+
+	if got.BackendURL != "http://mac.local:11434" {
+		t.Fatalf("expected backend_url, got %+v", got)
+	}
+}
+
+func TestBackendWithoutURLIsSkipped(t *testing.T) {
+	src := fakeBackendSource{backends: []Backend{
+		{
+			ID:            "mac-m2-ollama",
+			URL:           "http://mac.local:11434",
+			Rung:          RungFleet,
+			Healthy:       true,
+			CapableModels: []string{"llama3.2:3b"},
+			P95LatencyMS:  900,
+			MaxContext:    8192,
+		},
+	}}
+
+	got := NewResolver(src).Resolve(baseRequest())
+
+	if got.Decision != DecisionFailOpen {
+		t.Fatalf("expected fail-open because backend has no URL, got %+v", got)
 	}
 }

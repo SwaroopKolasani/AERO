@@ -50,6 +50,10 @@ func (r *Resolver) Resolve(req PlacementRequest) PlacementResponse {
 		if !canFitContext(b, req.EstimatedInputTokens+req.EstimatedOutputTokens) {
 			continue
 		}
+		if b.URL == "" {
+			continue
+		}
+
 		candidates = append(candidates, b)
 	}
 
@@ -90,12 +94,13 @@ func (r *Resolver) Resolve(req PlacementRequest) PlacementResponse {
 	best := candidates[0]
 
 	return PlacementResponse{
-		RequestID: req.RequestID,
-		Decision:  DecisionRoute,
-		BackendID: best.ID,
-		Rung:      best.Rung,
-		Reason:    "cheapest_healthy_capable_backend",
-		FailOpen:  false,
+		RequestID:  req.RequestID,
+		Decision:   DecisionRoute,
+		BackendID:  best.ID,
+		BackendURL: best.URL,
+		Rung:       best.Rung,
+		Reason:     "cheapest_healthy_capable_backend",
+		FailOpen:   false,
 	}
 }
 

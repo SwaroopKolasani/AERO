@@ -228,3 +228,44 @@ func TestDeleteBackendOverHTTP(t *testing.T) {
 		t.Fatal("expected backend deleted")
 	}
 }
+func TestResolveResponseIncludesBackendURLOverHTTP(t *testing.T) {
+	reg := registry.NewMemoryRegistry()
+	reg.UpsertBackend(placement.Backend{
+		ID:           "mac-m2-ollama",
+		Rung:         placement.RungFleet,
+		URL:          "http://mac.local:11434",
+		Healthy:      true,
+		LoadedModels: []string{"llama3.2:3b"},
+		P95LatencyMS: 900,
+		MaxContext:   8192,
+	})
+
+	srv := New(reg)
+
+	body := []byte(`{
+		"request_id": "req_url_contract",
+		"model": "llama3.2:3b",
+		"deadline_ms": 2000,
+		"estimated_input_tokens": 512,
+		"estimated_output_tokens": 128,
+		"tier": "A"
+	}`)
+
+	req := httptest.NewRequest(http.MethodPost, "/resolve", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+
+	srv.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var got placement.PlacementResponse
+	if err := json.NewDecoder(rec.Body).Decode(&got); err != nil {
+		t.Fatalf("decode resolve response: %v", err)
+	}
+
+	if got.BackendURL != "http://mac.local:11434" {
+		t.Fatalf("expected backend_url, got %+v", got)
+	}
+}

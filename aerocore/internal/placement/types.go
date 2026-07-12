@@ -36,12 +36,13 @@ type PlacementRequest struct {
 }
 
 type PlacementResponse struct {
-	RequestID string   `json:"request_id"`
-	Decision  Decision `json:"decision"`
-	BackendID string   `json:"backend_id,omitempty"`
-	Rung      Rung     `json:"rung,omitempty"`
-	Reason    string   `json:"reason"`
-	FailOpen  bool     `json:"fail_open"`
+	RequestID  string   `json:"request_id"`
+	Decision   Decision `json:"decision"`
+	BackendID  string   `json:"backend_id,omitempty"`
+	BackendURL string   `json:"backend_url,omitempty"`
+	Rung       Rung     `json:"rung,omitempty"`
+	Reason     string   `json:"reason"`
+	FailOpen   bool     `json:"fail_open"`
 }
 
 type Backend struct {

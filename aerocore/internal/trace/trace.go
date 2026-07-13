@@ -4,11 +4,13 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"strings"
+
+	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
 const (
-	IncomingRequestIDHeader = "X-Aero-Request-Id"
-	CoreRequestIDHeader     = "X-AeroCore-Request-Id"
+	IncomingRequestIDHeader = api.IncomingRequestIDHeader
+	CoreRequestIDHeader     = api.CoreRequestIDHeader
 )
 
 func NormalizeRequestID(id string) string {

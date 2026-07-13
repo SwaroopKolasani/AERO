@@ -59,7 +59,12 @@ func (c *Client) Resolve(ctx context.Context, req api.PlacementRequest) (api.Pla
 		return resp, fmt.Errorf("aerocore base url is empty")
 	}
 
-	status, err := c.doJSON(ctx, http.MethodPost, "/resolve", req, &resp)
+	headers := map[string]string{}
+	if requestID := strings.TrimSpace(req.RequestID); requestID != "" {
+		headers[api.IncomingRequestIDHeader] = requestID
+	}
+
+	status, err := c.doJSON(ctx, http.MethodPost, "/resolve", req, &resp, headers)
 	if err != nil {
 		return resp, err
 	}
@@ -78,7 +83,7 @@ func (c *Client) Ready(ctx context.Context) (ReadyResponse, error) {
 		return resp, fmt.Errorf("aerocore base url is empty")
 	}
 
-	status, err := c.doJSON(ctx, http.MethodGet, "/readyz", nil, &resp)
+	status, err := c.doJSON(ctx, http.MethodGet, "/readyz", nil, &resp, nil)
 	if err != nil {
 		return resp, err
 	}
@@ -97,7 +102,7 @@ func (c *Client) Config(ctx context.Context) (ConfigResponse, error) {
 		return resp, fmt.Errorf("aerocore base url is empty")
 	}
 
-	status, err := c.doJSON(ctx, http.MethodGet, "/config", nil, &resp)
+	status, err := c.doJSON(ctx, http.MethodGet, "/config", nil, &resp, nil)
 	if err != nil {
 		return resp, err
 	}
@@ -109,7 +114,7 @@ func (c *Client) Config(ctx context.Context) (ConfigResponse, error) {
 	return resp, nil
 }
 
-func (c *Client) doJSON(ctx context.Context, method string, path string, in any, out any) (int, error) {
+func (c *Client) doJSON(ctx context.Context, method string, path string, in any, out any, headers map[string]string) (int, error) {
 	var body *bytes.Reader
 
 	if in == nil {
@@ -131,6 +136,12 @@ func (c *Client) doJSON(ctx context.Context, method string, path string, in any,
 		httpReq.Header.Set("Content-Type", "application/json")
 	}
 	httpReq.Header.Set("Accept", "application/json")
+
+	for key, value := range headers {
+		if strings.TrimSpace(value) != "" {
+			httpReq.Header.Set(key, value)
+		}
+	}
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {

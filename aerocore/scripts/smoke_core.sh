@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PORT="${AEROCORE_SMOKE_PORT:-8088}"
+PORT="${AEROCORE_SMOKE_PORT:-18088}"
 ADDR=":${PORT}"
 BASE_URL="http://localhost:${PORT}"
 LOG_FILE="${TMPDIR:-/tmp}/aerocore-smoke.log"
@@ -30,14 +30,23 @@ for _ in $(seq 1 40); do
   if curl -fsS "${BASE_URL}/healthz" >/dev/null 2>&1; then
     break
   fi
+
+  if ! kill -0 "${PID}" >/dev/null 2>&1; then
+    echo "aerocore exited early"
+    cat "${LOG_FILE}" || true
+    exit 1
+  fi
+
   sleep 0.25
 done
 
 curl -fsS "${BASE_URL}/healthz" | grep -q '"status":"ok"'
-
 curl -fsS "${BASE_URL}/readyz" | grep -q '"ready":true'
-
 curl -fsS "${BASE_URL}/config" | grep -q '"default_upstream_configured":true'
+
+BACKENDS_BODY="$(curl -fsS "${BASE_URL}/backends")"
+echo "${BACKENDS_BODY}" | grep -q '"id":"mac-m2-ollama"'
+echo "${BACKENDS_BODY}" | grep -q '"healthy":true'
 
 RESOLVE_BODY="$(curl -fsS -X POST "${BASE_URL}/resolve" \
   -H 'content-type: application/json' \

@@ -38,3 +38,13 @@ func TestPlacementResponseJSONContract(t *testing.T) {
 		t.Fatalf("missing decision contract: %s", string(data))
 	}
 }
+
+func TestHeaderConstants(t *testing.T) {
+	if IncomingRequestIDHeader != "X-Aero-Request-Id" {
+		t.Fatalf("unexpected incoming request id header: %q", IncomingRequestIDHeader)
+	}
+
+	if CoreRequestIDHeader != "X-AeroCore-Request-Id" {
+		t.Fatalf("unexpected core request id header: %q", CoreRequestIDHeader)
+	}
+}

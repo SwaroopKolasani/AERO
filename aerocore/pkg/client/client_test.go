@@ -135,3 +135,60 @@ func TestEmptyBaseURLFails(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
+func TestResolveSendsAeroRequestIDHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get(api.IncomingRequestIDHeader); got != "req_trace_client" {
+			t.Fatalf("expected %s header, got %q", api.IncomingRequestIDHeader, got)
+		}
+
+		_ = json.NewEncoder(w).Encode(api.PlacementResponse{
+			RequestID:  "req_trace_client",
+			Decision:   api.DecisionRoute,
+			BackendID:  "mac-m2-ollama",
+			BackendURL: "http://mac.local:11434",
+			Rung:       api.RungFleet,
+			Reason:     "cheapest_healthy_capable_backend",
+			FailOpen:   false,
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+
+	_, err := c.Resolve(context.Background(), api.PlacementRequest{
+		RequestID: "req_trace_client",
+		Model:     "llama3.2:3b",
+		Tier:      api.TierA,
+	})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+}
+
+func TestResolveDoesNotSendEmptyAeroRequestIDHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get(api.IncomingRequestIDHeader); got != "" {
+			t.Fatalf("expected empty %s header, got %q", api.IncomingRequestIDHeader, got)
+		}
+
+		_ = json.NewEncoder(w).Encode(api.PlacementResponse{
+			Decision:   api.DecisionFailOpen,
+			BackendID:  "default-upstream",
+			BackendURL: "http://localhost:11434",
+			Rung:       api.RungUpstream,
+			Reason:     "no_healthy_capable_backend",
+			FailOpen:   true,
+		})
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+
+	_, err := c.Resolve(context.Background(), api.PlacementRequest{
+		Model: "llama3.2:3b",
+		Tier:  api.TierA,
+	})
+	if err != nil {
+		t.Fatalf("Resolve returned error: %v", err)
+	}
+}

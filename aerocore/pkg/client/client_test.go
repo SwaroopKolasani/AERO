@@ -166,20 +166,12 @@ func TestResolveSendsAeroRequestIDHeader(t *testing.T) {
 	}
 }
 
-func TestResolveDoesNotSendEmptyAeroRequestIDHeader(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if got := r.Header.Get(api.IncomingRequestIDHeader); got != "" {
-			t.Fatalf("expected empty %s header, got %q", api.IncomingRequestIDHeader, got)
-		}
+func TestResolveRejectsEmptyRequestIDBeforeNetwork(t *testing.T) {
+	called := false
 
-		_ = json.NewEncoder(w).Encode(api.PlacementResponse{
-			Decision:   api.DecisionFailOpen,
-			BackendID:  "default-upstream",
-			BackendURL: "http://localhost:11434",
-			Rung:       api.RungUpstream,
-			Reason:     "no_healthy_capable_backend",
-			FailOpen:   true,
-		})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer srv.Close()
 
@@ -189,10 +181,19 @@ func TestResolveDoesNotSendEmptyAeroRequestIDHeader(t *testing.T) {
 		Model: "llama3.2:3b",
 		Tier:  api.TierA,
 	})
-	if err != nil {
-		t.Fatalf("Resolve returned error: %v", err)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if !strings.Contains(err.Error(), "request_id_required") {
+		t.Fatalf("expected request_id_required error, got %v", err)
+	}
+
+	if called {
+		t.Fatal("expected validation to fail before network call")
 	}
 }
+
 func TestResolveTargetReturnsRouteBackendURL(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(api.PlacementResponse{
@@ -356,5 +357,56 @@ func TestResolveTargetNetworkErrorWithoutFallbackReturnsError(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected network error")
+	}
+}
+func TestResolveRejectsMissingModelBeforeNetwork(t *testing.T) {
+	called := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL)
+
+	_, err := c.Resolve(context.Background(), api.PlacementRequest{
+		RequestID: "req_missing_model_client",
+		Tier:      api.TierA,
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if !strings.Contains(err.Error(), "model_required") {
+		t.Fatalf("expected model_required error, got %v", err)
+	}
+
+	if called {
+		t.Fatal("expected validation to fail before network call")
+	}
+}
+
+func TestResolveTargetDoesNotFallbackOnValidationError(t *testing.T) {
+	c := New("http://127.0.0.1:1", WithFallbackURL("http://localhost:11434"))
+
+	targetURL, decision, err := c.ResolveTarget(context.Background(), api.PlacementRequest{
+		RequestID: "req_bad_validation_no_model",
+		Tier:      api.TierA,
+	})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+
+	if targetURL != "" {
+		t.Fatalf("expected empty target URL, got %q", targetURL)
+	}
+
+	if decision.Decision != "" {
+		t.Fatalf("expected empty decision on validation failure, got %+v", decision)
+	}
+
+	if !strings.Contains(err.Error(), "model_required") {
+		t.Fatalf("expected model_required error, got %v", err)
 	}
 }

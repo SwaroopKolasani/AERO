@@ -81,6 +81,10 @@ func New(baseURL string, opts ...Option) *Client {
 func (c *Client) Resolve(ctx context.Context, req api.PlacementRequest) (api.PlacementResponse, error) {
 	var resp api.PlacementResponse
 
+	if err := api.ValidatePlacementRequest(req); err != nil {
+		return resp, fmt.Errorf("invalid placement request: %w", err)
+	}
+
 	if c.baseURL == "" {
 		return resp, fmt.Errorf("aerocore base url is empty")
 	}

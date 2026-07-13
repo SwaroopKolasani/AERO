@@ -1,0 +1,17 @@
+{
+  "request": {
+    "request_id": "req_contract_reject_tier_b",
+    "model": "llama3.2:3b",
+    "deadline_ms": 2000,
+    "estimated_input_tokens": 512,
+    "estimated_output_tokens": 128,
+    "stream": true,
+    "tier": "B"
+  },
+  "response": {
+    "request_id": "req_contract_reject_tier_b",
+    "decision": "reject",
+    "reason": "tier_b_not_supported_in_m3",
+    "fail_open": false
+  }
+}

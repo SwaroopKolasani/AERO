@@ -1,0 +1,20 @@
+{
+  "request": {
+    "request_id": "req_contract_fail_open",
+    "model": "llama3.2:70b",
+    "deadline_ms": 2000,
+    "estimated_input_tokens": 512,
+    "estimated_output_tokens": 128,
+    "stream": true,
+    "tier": "A"
+  },
+  "response": {
+    "request_id": "req_contract_fail_open",
+    "decision": "fail_open",
+    "backend_id": "default-upstream",
+    "backend_url": "http://localhost:11434",
+    "rung": "upstream",
+    "reason": "no_healthy_capable_backend",
+    "fail_open": true
+  }
+}

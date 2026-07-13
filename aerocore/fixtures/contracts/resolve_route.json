@@ -1,0 +1,20 @@
+{
+  "request": {
+    "request_id": "req_contract_route",
+    "model": "llama3.2:3b",
+    "deadline_ms": 2000,
+    "estimated_input_tokens": 512,
+    "estimated_output_tokens": 128,
+    "stream": true,
+    "tier": "A"
+  },
+  "response": {
+    "request_id": "req_contract_route",
+    "decision": "route",
+    "backend_id": "mac-m2-ollama",
+    "backend_url": "http://mac.local:11434",
+    "rung": "fleet",
+    "reason": "cheapest_healthy_capable_backend",
+    "fail_open": false
+  }
+}

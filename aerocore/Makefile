@@ -1,10 +1,13 @@
-.PHONY: fmt test smoke run build clean
+.PHONY: fmt test smoke run build clean contract
 
 fmt:
 	gofmt -w aerocore internal pkg
 
 test:
 	go test ./...
+
+contract:
+	go test ./pkg/api/contracttest
 
 smoke:
 	./scripts/smoke_core.sh

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,14 +13,33 @@ import (
 	"github.com/swaroop/aero/aerocore/pkg/api"
 )
 
-const defaultTimeout = 2 * time.Second
+const (
+	defaultTimeout            = 2 * time.Second
+	clientFallbackBackendID   = "client-local-fallback"
+	clientFallbackReason      = "aerocore_unavailable_local_fallback"
+	emptyPlacementTargetURL   = "aerocore placement target url is empty"
+	rejectedPlacementDecision = "aerocore placement rejected request"
+)
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
+	baseURL     string
+	httpClient  *http.Client
+	fallbackURL string
 }
 
 type Option func(*Client)
+
+type RequestError struct {
+	Err error
+}
+
+func (e *RequestError) Error() string {
+	return fmt.Sprintf("aerocore request failed: %v", e.Err)
+}
+
+func (e *RequestError) Unwrap() error {
+	return e.Err
+}
 
 func WithHTTPClient(httpClient *http.Client) Option {
 	return func(c *Client) {
@@ -37,9 +57,15 @@ func WithTimeout(timeout time.Duration) Option {
 	}
 }
 
+func WithFallbackURL(url string) Option {
+	return func(c *Client) {
+		c.fallbackURL = strings.TrimRight(strings.TrimSpace(url), "/")
+	}
+}
+
 func New(baseURL string, opts ...Option) *Client {
 	c := &Client{
-		baseURL: strings.TrimRight(baseURL, "/"),
+		baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
 		httpClient: &http.Client{
 			Timeout: defaultTimeout,
 		},
@@ -74,6 +100,44 @@ func (c *Client) Resolve(ctx context.Context, req api.PlacementRequest) (api.Pla
 	}
 
 	return resp, nil
+}
+
+func (c *Client) ResolveTarget(ctx context.Context, req api.PlacementRequest) (string, api.PlacementResponse, error) {
+	resp, err := c.Resolve(ctx, req)
+	if err != nil {
+		var requestErr *RequestError
+		if errors.As(err, &requestErr) && c.fallbackURL != "" {
+			fallbackResp := api.PlacementResponse{
+				RequestID:  req.RequestID,
+				Decision:   api.DecisionFailOpen,
+				BackendID:  clientFallbackBackendID,
+				BackendURL: c.fallbackURL,
+				Rung:       api.RungUpstream,
+				Reason:     clientFallbackReason,
+				FailOpen:   true,
+			}
+
+			return c.fallbackURL, fallbackResp, nil
+		}
+
+		return "", resp, err
+	}
+
+	switch resp.Decision {
+	case api.DecisionRoute, api.DecisionFailOpen:
+		targetURL := strings.TrimSpace(resp.BackendURL)
+		if targetURL == "" {
+			return "", resp, fmt.Errorf("%s decision=%s backend_id=%s", emptyPlacementTargetURL, resp.Decision, resp.BackendID)
+		}
+
+		return targetURL, resp, nil
+
+	case api.DecisionReject:
+		return "", resp, fmt.Errorf("%s reason=%s", rejectedPlacementDecision, resp.Reason)
+
+	default:
+		return "", resp, fmt.Errorf("unknown aerocore placement decision %q", resp.Decision)
+	}
 }
 
 func (c *Client) Ready(ctx context.Context) (ReadyResponse, error) {
@@ -145,7 +209,7 @@ func (c *Client) doJSON(ctx context.Context, method string, path string, in any,
 
 	httpResp, err := c.httpClient.Do(httpReq)
 	if err != nil {
-		return 0, fmt.Errorf("aerocore request failed: %w", err)
+		return 0, &RequestError{Err: err}
 	}
 	defer httpResp.Body.Close()
 

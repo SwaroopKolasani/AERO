@@ -54,8 +54,25 @@ func (c *Client) Do(
 	streamTo http.ResponseWriter,
 	markWritten func(),
 ) (*Result, error) {
+	return c.DoTo(ctx, "", endpoint, body, streamTo, markWritten)
+}
+
+func (c *Client) DoTo(
+	ctx context.Context,
+	baseURL string,
+	endpoint string,
+	body []byte,
+	streamTo http.ResponseWriter,
+	markWritten func(),
+) (*Result, error) {
 	start := time.Now()
-	url := c.baseURL + endpoint
+
+	targetBaseURL := c.baseURL
+	if strings.TrimSpace(baseURL) != "" {
+		targetBaseURL = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	}
+
+	url := targetBaseURL + endpoint
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {

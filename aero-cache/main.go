@@ -71,6 +71,9 @@ func main() {
 		TokenizerAvailable: tokenizerAvailable,
 		Epoch:              getenvUint64("AERO_EPOCH", 0),
 		UpstreamURL:        getenv("AERO_UPSTREAM_URL", "http://localhost:11434"),
+		AeroCoreEnabled:    getenvBool("AEROCORE_ENABLED", false),
+		AeroCoreURL:        getenv("AEROCORE_URL", ""),
+		AeroCoreTimeout:    getenvDuration("AEROCORE_TIMEOUT", 2*time.Second),
 		Tokenizer:          tokenizer,
 		Renderer:           renderer,
 		Fingerprint: key.Fingerprint{
@@ -138,4 +141,32 @@ func getenvUint64(keyName string, fallback uint64) uint64 {
 	}
 
 	return n
+}
+
+func getenvBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseBool(v)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func getenvDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+
+	parsed, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
 }

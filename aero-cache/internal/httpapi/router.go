@@ -20,6 +20,7 @@ import (
 	"aero-cache/internal/key"
 	"aero-cache/internal/lookup"
 	"aero-cache/internal/metrics"
+	"aero-cache/internal/placement"
 	"aero-cache/internal/store"
 	"aero-cache/internal/store/l1ristretto"
 	"aero-cache/internal/store/l2valkey"
@@ -40,6 +41,9 @@ type Config struct {
 	Fingerprint        key.Fingerprint
 	Epoch              uint64
 	UpstreamURL        string
+	AeroCoreEnabled    bool
+	AeroCoreURL        string
+	AeroCoreTimeout    time.Duration
 	Tokenizer          key.Tokenizer
 	Renderer           key.Renderer
 }
@@ -51,6 +55,7 @@ type Server struct {
 	keyBuilder *key.Builder
 	lookup     *lookup.Orchestrator
 	upstream   *upstream.Client
+	placement  *placement.Resolver
 	coalescer  *coalesce.Group
 	writeback  *writeback.Queue
 }
@@ -83,6 +88,13 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		upstreamURL = getenvLocal("AERO_UPSTREAM_URL", "http://localhost:11434")
 	}
 
+	placementResolver := placement.NewResolver(placement.Config{
+		Enabled:     cfg.AeroCoreEnabled,
+		BaseURL:     cfg.AeroCoreURL,
+		Timeout:     cfg.AeroCoreTimeout,
+		FallbackURL: upstreamURL,
+	})
+
 	wb := writeback.NewQueue(writeback.Config{
 		Workers: 4,
 		Size:    1024,
@@ -101,6 +113,7 @@ func NewRouter(cfg Config, stats *metrics.Registry) http.Handler {
 		upstream: upstream.NewClient(upstream.Config{
 			BaseURL: upstreamURL,
 		}),
+		placement: placementResolver,
 		coalescer: coalesce.New(),
 		writeback: wb,
 	}
@@ -413,6 +426,18 @@ func (s *Server) serveCacheHit(
 	}
 }
 
+func requestModelForPlacement(body []byte) string {
+	var req struct {
+		Model string `json:"model"`
+	}
+
+	if err := json.Unmarshal(body, &req); err != nil {
+		return ""
+	}
+
+	return strings.TrimSpace(req.Model)
+}
+
 func (s *Server) handleMiss(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -444,9 +469,16 @@ func (s *Server) handleMiss(
 			tw.Header().Set("X-Aero-Store-Key", material.StoreKey)
 		}
 
+		target := s.placement.Resolve(r.Context(), placement.Request{
+			RequestID: requestID,
+			Model:     requestModelForPlacement(body),
+			Stream:    wantsStream,
+			Tier:      "A",
+		})
+
 		s.stats.IncUpstreamCall()
 
-		upRes, err := s.upstream.Do(r.Context(), endpoint, body, tw, func() {
+		upRes, err := s.upstream.DoTo(r.Context(), target.BaseURL, endpoint, body, tw, func() {
 			leaderWrote = true
 		})
 		if err != nil {

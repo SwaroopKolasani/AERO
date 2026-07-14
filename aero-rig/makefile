@@ -1,4 +1,4 @@
-.PHONY: fmt test build smoke summary chat-summary chat-proof stream-summary suite matrix clean
+.PHONY: fmt test build smoke summary chat-summary chat-proof stream-summary suite matrix compare clean
 
 fmt:
 	gofmt -w aero-rig internal
@@ -30,6 +30,9 @@ suite:
 
 matrix:
 	go run ./aero-rig build-matrix -suite-result out/suites/local/suite_result.json -out out/suites/local/matrix.json
+
+compare:
+	go run ./aero-rig compare-matrix -baseline out/base/matrix.json -candidate out/candidate/matrix.json
 
 clean:
 	rm -rf bin out

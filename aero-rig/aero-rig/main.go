@@ -43,6 +43,8 @@ func main() {
 		code = runBuildMatrix(os.Args[2:])
 	case "probe-chat-stream":
 		code = runProbeChatStream(os.Args[2:])
+	case "compare-matrix":
+		code = runCompareMatrix(os.Args[2:])
 	case "probe-chat":
 		code = runProbeChat(os.Args[2:])
 	case "help", "-h", "--help":
@@ -78,6 +80,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  probe-chat-stream  measure streaming OpenAI-compatible chat completion TTFT")
 	fmt.Fprintln(w, "  aerorig run-suite -manifest examples/local-suite.json")
 	fmt.Fprintln(w, "  summary-chat-stream  summarize streaming chat probe JSONL output")
+	fmt.Fprintln(w, "  compare-matrix compare two aerorig.matrix.v1 files")
+	fmt.Fprintln(w, "  aerorig compare-matrix -baseline out/base/matrix.json -candidate out/candidate/matrix.json")
 	fmt.Fprintln(w, "  aerorig build-matrix -suite-result out/suites/local/suite_result.json -out out/suites/local/matrix.json")
 	fmt.Fprintln(w, "  build-matrix   build normalized latency matrix from suite_result.json")
 	fmt.Fprintln(w, "  aerorig summary-chat-stream -in out/aerocache_chat_stream_twice.jsonl")
@@ -997,4 +1001,153 @@ func printMatrix(w io.Writer, m matrix.Matrix) {
 
 		fmt.Fprintln(w)
 	}
+}
+func runCompareMatrix(args []string) int {
+	fs := flag.NewFlagSet("compare-matrix", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	baselinePath := fs.String("baseline", "", "baseline matrix JSON path")
+	candidatePath := fs.String("candidate", "", "candidate matrix JSON path")
+	outPath := fs.String("out", "", "optional comparison JSON output path")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *baselinePath == "" {
+		fmt.Fprintln(os.Stderr, "-baseline is required")
+		return 2
+	}
+	if *candidatePath == "" {
+		fmt.Fprintln(os.Stderr, "-candidate is required")
+		return 2
+	}
+
+	comp, err := matrix.CompareFiles(*baselinePath, *candidatePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "compare matrix: %v\n", err)
+		return 1
+	}
+
+	if *outPath != "" {
+		if err := writeJSONFile(*outPath, comp); err != nil {
+			fmt.Fprintf(os.Stderr, "write comparison: %v\n", err)
+			return 1
+		}
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(comp); err != nil {
+			fmt.Fprintf(os.Stderr, "write comparison: %v\n", err)
+			return 1
+		}
+	case "text":
+		printMatrixComparison(os.Stdout, comp)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if comp.Summary.FailedRows > 0 {
+		return 1
+	}
+
+	return 0
+}
+
+func printMatrixComparison(w io.Writer, c matrix.Comparison) {
+	fmt.Fprintln(w, "AeroRig matrix comparison")
+	fmt.Fprintf(w, "schema: %s\n", c.SchemaVersion)
+	fmt.Fprintf(w, "baseline: %s\n", c.BaselinePath)
+	fmt.Fprintf(w, "candidate: %s\n", c.CandidatePath)
+	fmt.Fprintf(
+		w,
+		"rows: matched=%d added=%d removed=%d failed=%d\n",
+		c.Summary.MatchedRows,
+		c.Summary.AddedRows,
+		c.Summary.RemovedRows,
+		c.Summary.FailedRows,
+	)
+
+	for _, row := range c.Rows {
+		switch row.Status {
+		case "matched":
+			fmt.Fprintf(
+				w,
+				"- %s [%s] matched success_delta=%.2fpp p50_delta_ms=%.3f p95_delta_ms=%.3f avg_delta_ms=%.3f",
+				row.Name,
+				row.Probe,
+				row.SuccessRateDelta*100.0,
+				row.LatencyP50DeltaMS,
+				row.LatencyP95DeltaMS,
+				row.LatencyAvgDeltaMS,
+			)
+
+			if row.Probe == "chat_stream" {
+				fmt.Fprintf(
+					w,
+					" ttft_p50_delta_ms=%.3f ttft_p95_delta_ms=%.3f",
+					row.TTFTP50DeltaMS,
+					row.TTFTP95DeltaMS,
+				)
+			}
+
+			if row.OutputTokensAvgDelta != 0 || row.TotalTokensAvgDelta != 0 {
+				fmt.Fprintf(
+					w,
+					" output_tokens_avg_delta=%.3f total_tokens_avg_delta=%.3f",
+					row.OutputTokensAvgDelta,
+					row.TotalTokensAvgDelta,
+				)
+			}
+
+			if row.VerifiedSamplesDelta != 0 || row.VerifiedHitSamplesDelta != 0 {
+				fmt.Fprintf(
+					w,
+					" verified_delta=%d verified_hit_delta=%d",
+					row.VerifiedSamplesDelta,
+					row.VerifiedHitSamplesDelta,
+				)
+			}
+
+			if row.AnswerStableChanged {
+				fmt.Fprintf(w, " answer_stable_changed=true")
+			}
+
+			fmt.Fprintln(w)
+
+		case "added":
+			fmt.Fprintf(w, "- %s [%s] added\n", row.Name, row.Probe)
+		case "removed":
+			fmt.Fprintf(w, "- %s [%s] removed\n", row.Name, row.Probe)
+		}
+	}
+}
+
+func writeJSONFile(path string, v any) error {
+	if strings.TrimSpace(path) == "" {
+		return fmt.Errorf("output path is required")
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create output dir: %w", err)
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create output file: %w", err)
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(v); err != nil {
+		return fmt.Errorf("write output file: %w", err)
+	}
+
+	return nil
 }

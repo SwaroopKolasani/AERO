@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"aero-rig/internal/config"
+	"aero-rig/internal/matrix"
 	"aero-rig/internal/probe"
 	"aero-rig/internal/report"
 	"aero-rig/internal/suite"
@@ -38,6 +39,8 @@ func main() {
 		code = runSuite(os.Args[2:])
 	case "summary-chat-stream":
 		code = runSummaryChatStream(os.Args[2:])
+	case "build-matrix":
+		code = runBuildMatrix(os.Args[2:])
 	case "probe-chat-stream":
 		code = runProbeChatStream(os.Args[2:])
 	case "probe-chat":
@@ -75,6 +78,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  probe-chat-stream  measure streaming OpenAI-compatible chat completion TTFT")
 	fmt.Fprintln(w, "  aerorig run-suite -manifest examples/local-suite.json")
 	fmt.Fprintln(w, "  summary-chat-stream  summarize streaming chat probe JSONL output")
+	fmt.Fprintln(w, "  aerorig build-matrix -suite-result out/suites/local/suite_result.json -out out/suites/local/matrix.json")
+	fmt.Fprintln(w, "  build-matrix   build normalized latency matrix from suite_result.json")
 	fmt.Fprintln(w, "  aerorig summary-chat-stream -in out/aerocache_chat_stream_twice.jsonl")
 	fmt.Fprintln(w, "  aerorig proof-chat -in out/aerocache_chat_twice.jsonl -require-cache-hit -require-verified-hit -require-miss-hit")
 }
@@ -247,6 +252,7 @@ func printChatSummary(w io.Writer, s report.ChatSummary) {
 	fmt.Fprintf(w, "answer_hash_count: %d\n", s.AnswerHashCount)
 	fmt.Fprintf(w, "answer_stable: %t\n", s.AnswerStable)
 	fmt.Fprintf(w, "verified_samples: %d\n", s.VerifiedSamples)
+	fmt.Fprintf(w, "verified_hit_samples: %d\n", s.VerifiedHitSamples)
 
 	printStringCounts(w, "cache_results", s.CacheResults)
 	printStringCounts(w, "tiers", s.Tiers)
@@ -900,6 +906,7 @@ func printChatStreamSummary(w io.Writer, s report.ChatStreamSummary) {
 	fmt.Fprintf(w, "answer_stable: %t\n", s.AnswerStable)
 	fmt.Fprintf(w, "verified_samples: %d\n", s.VerifiedSamples)
 	fmt.Fprintf(w, "verified_hit_samples: %d\n", s.VerifiedHitSamples)
+	fmt.Fprintf(w, "verified_hit_samples: %d\n", s.VerifiedHitSamples)
 
 	printStringCounts(w, "cache_results", s.CacheResults)
 	printStringCounts(w, "tiers", s.Tiers)
@@ -907,4 +914,87 @@ func printChatStreamSummary(w io.Writer, s report.ChatStreamSummary) {
 	printStringCounts(w, "finish_reasons", s.FinishReasons)
 	printStringCounts(w, "response_models", s.ResponseModels)
 	printStringCounts(w, "errors", s.Errors)
+}
+
+func runBuildMatrix(args []string) int {
+	fs := flag.NewFlagSet("build-matrix", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	suiteResultPath := fs.String("suite-result", "", "path to suite_result.json")
+	outPath := fs.String("out", "", "optional output matrix JSON path")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *suiteResultPath == "" {
+		fmt.Fprintln(os.Stderr, "-suite-result is required")
+		return 2
+	}
+
+	m, err := matrix.BuildFromSuiteResult(*suiteResultPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "build matrix: %v\n", err)
+		return 1
+	}
+
+	if *outPath != "" {
+		if err := matrix.Write(*outPath, m); err != nil {
+			fmt.Fprintf(os.Stderr, "write matrix: %v\n", err)
+			return 1
+		}
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(m); err != nil {
+			fmt.Fprintf(os.Stderr, "write matrix: %v\n", err)
+			return 1
+		}
+	case "text":
+		printMatrix(os.Stdout, m)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	return 0
+}
+
+func printMatrix(w io.Writer, m matrix.Matrix) {
+	fmt.Fprintln(w, "AeroRig matrix")
+	fmt.Fprintf(w, "schema: %s\n", m.SchemaVersion)
+	fmt.Fprintf(w, "suite: %s\n", m.SuiteName)
+	fmt.Fprintf(w, "source: %s\n", m.SourceSuiteResult)
+	fmt.Fprintf(w, "rows: %d\n", len(m.Rows))
+
+	for _, row := range m.Rows {
+		fmt.Fprintf(
+			w,
+			"- %s [%s] samples=%d ok=%d failed=%d success=%.2f%% p50_ms=%.3f p95_ms=%.3f",
+			row.Name,
+			row.Probe,
+			row.TotalSamples,
+			row.OKSamples,
+			row.FailedSamples,
+			row.SuccessRate*100.0,
+			row.LatencyP50MS,
+			row.LatencyP95MS,
+		)
+
+		if row.Probe == "chat_stream" {
+			fmt.Fprintf(w, " ttft_p50_ms=%.3f ttft_p95_ms=%.3f", row.TTFTP50MS, row.TTFTP95MS)
+		}
+		if row.AnswerStable != nil {
+			fmt.Fprintf(w, " answer_stable=%t", *row.AnswerStable)
+		}
+		if row.VerifiedSamples > 0 || row.VerifiedHitSamples > 0 {
+			fmt.Fprintf(w, " verified=%d verified_hits=%d", row.VerifiedSamples, row.VerifiedHitSamples)
+		}
+
+		fmt.Fprintln(w)
+	}
 }

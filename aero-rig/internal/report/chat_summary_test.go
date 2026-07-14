@@ -46,6 +46,9 @@ func TestSummarizeChat(t *testing.T) {
 	if s.VerifiedSamples != 1 {
 		t.Fatalf("verified = %d, want 1", s.VerifiedSamples)
 	}
+	if s.VerifiedHitSamples != 1 {
+		t.Fatalf("verified_hit_samples = %d, want 1", s.VerifiedHitSamples)
+	}
 	if s.LatencyMS.MinMS != 1.0 || s.LatencyMS.P50MS != 10.0 || s.LatencyMS.P95MS != 30.0 {
 		t.Fatalf("unexpected latency summary: %+v", s.LatencyMS)
 	}

@@ -22,26 +22,27 @@ type IntSummary struct {
 }
 
 type ChatSummary struct {
-	SchemaVersion   string          `json:"schema_version"`
-	Probe           string          `json:"probe"`
-	SourceFiles     []string        `json:"source_files"`
-	TotalSamples    int             `json:"total_samples"`
-	OKSamples       int             `json:"ok_samples"`
-	FailedSamples   int             `json:"failed_samples"`
-	SuccessRate     float64         `json:"success_rate"`
-	LatencyMS       LatencySummary  `json:"latency_ms"`
-	PromptTokens    IntSummary      `json:"prompt_tokens"`
-	OutputTokens    IntSummary      `json:"output_tokens"`
-	TotalTokens     IntSummary      `json:"total_tokens"`
-	AnswerHashCount int             `json:"answer_hash_count"`
-	AnswerStable    bool            `json:"answer_stable"`
-	CacheResults    []CountByString `json:"cache_results"`
-	Tiers           []CountByString `json:"tiers"`
-	VerifiedSamples int             `json:"verified_samples"`
-	StatusCodes     []CountByStatus `json:"status_codes"`
-	FinishReasons   []CountByString `json:"finish_reasons"`
-	ResponseModels  []CountByString `json:"response_models"`
-	Errors          []CountByString `json:"errors"`
+	SchemaVersion      string          `json:"schema_version"`
+	Probe              string          `json:"probe"`
+	SourceFiles        []string        `json:"source_files"`
+	TotalSamples       int             `json:"total_samples"`
+	OKSamples          int             `json:"ok_samples"`
+	FailedSamples      int             `json:"failed_samples"`
+	SuccessRate        float64         `json:"success_rate"`
+	LatencyMS          LatencySummary  `json:"latency_ms"`
+	PromptTokens       IntSummary      `json:"prompt_tokens"`
+	OutputTokens       IntSummary      `json:"output_tokens"`
+	TotalTokens        IntSummary      `json:"total_tokens"`
+	AnswerHashCount    int             `json:"answer_hash_count"`
+	AnswerStable       bool            `json:"answer_stable"`
+	CacheResults       []CountByString `json:"cache_results"`
+	Tiers              []CountByString `json:"tiers"`
+	VerifiedSamples    int             `json:"verified_samples"`
+	VerifiedHitSamples int             `json:"verified_hit_samples"`
+	StatusCodes        []CountByStatus `json:"status_codes"`
+	FinishReasons      []CountByString `json:"finish_reasons"`
+	ResponseModels     []CountByString `json:"response_models"`
+	Errors             []CountByString `json:"errors"`
 }
 
 func SummarizeChat(paths []string) (ChatSummary, error) {
@@ -109,14 +110,20 @@ func SummarizeChat(paths []string) (ChatSummary, error) {
 				errorCounts[errText]++
 			}
 
-			if v := getAeroHeader(r.AeroHeaders, "X-Aero-Cache"); v != "" {
-				cacheCounts[v]++
+			cache := getAeroHeader(r.AeroHeaders, "X-Aero-Cache")
+			verified := getAeroHeader(r.AeroHeaders, "X-Aero-Verified")
+
+			if cache != "" {
+				cacheCounts[cache]++
 			}
-			if v := getAeroHeader(r.AeroHeaders, "X-Aero-Tier"); v != "" {
-				tierCounts[v]++
+			if tier := getAeroHeader(r.AeroHeaders, "X-Aero-Tier"); tier != "" {
+				tierCounts[tier]++
 			}
-			if strings.EqualFold(getAeroHeader(r.AeroHeaders, "X-Aero-Verified"), "true") {
+			if strings.EqualFold(verified, "true") {
 				s.VerifiedSamples++
+				if strings.EqualFold(cache, "hit") {
+					s.VerifiedHitSamples++
+				}
 			}
 		}); err != nil {
 			return s, err

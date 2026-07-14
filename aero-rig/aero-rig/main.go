@@ -9,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"aero-rig/internal/config"
 	"aero-rig/internal/probe"
+	"aero-rig/internal/report"
 )
 
 func main() {
@@ -25,6 +27,8 @@ func main() {
 	switch os.Args[1] {
 	case "probe-http":
 		code = runProbeHTTP(os.Args[2:])
+	case "summary-http":
+		code = runSummaryHTTP(os.Args[2:])
 	case "help", "-h", "--help":
 		usage(os.Stdout)
 		code = 0
@@ -41,11 +45,14 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "aerorig - Project Aero measurement harness")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "commands:")
-	fmt.Fprintln(w, "  probe-http   measure HTTP reachability and latency")
+	fmt.Fprintln(w, "  probe-http     measure HTTP reachability and latency")
+	fmt.Fprintln(w, "  summary-http   summarize HTTP probe JSONL output")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "examples:")
 	fmt.Fprintln(w, "  aerorig probe-http -name aerocache -target http://127.0.0.1:8080/healthz -count 5")
 	fmt.Fprintln(w, "  aerorig probe-http -name ollama -target http://127.0.0.1:11434/api/tags -count 5 -out out/ollama.jsonl")
+	fmt.Fprintln(w, "  aerorig summary-http -in out/smoke_http.jsonl")
+	fmt.Fprintln(w, "  aerorig summary-http -in out/smoke_http.jsonl -format json")
 }
 
 func runProbeHTTP(args []string) int {
@@ -120,6 +127,107 @@ func runProbeHTTP(args []string) int {
 	}
 
 	return exitCode
+}
+
+func runSummaryHTTP(args []string) int {
+	fs := flag.NewFlagSet("summary-http", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	inRaw := fs.String("in", "", "comma-separated JSONL input files")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	paths := splitCSV(*inRaw)
+	paths = append(paths, fs.Args()...)
+
+	if len(paths) == 0 {
+		fmt.Fprintln(os.Stderr, "-in or positional JSONL file is required")
+		return 2
+	}
+
+	summary, err := report.SummarizeHTTP(paths)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "summarize http: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(summary); err != nil {
+			fmt.Fprintf(os.Stderr, "write summary: %v\n", err)
+			return 1
+		}
+	case "text":
+		printHTTPSummary(os.Stdout, summary)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if summary.FailedSamples > 0 {
+		return 1
+	}
+
+	return 0
+}
+
+func printHTTPSummary(w io.Writer, s report.HTTPSummary) {
+	fmt.Fprintln(w, "HTTP summary")
+	fmt.Fprintf(w, "schema: %s\n", s.SchemaVersion)
+	fmt.Fprintf(w, "files: %s\n", strings.Join(s.SourceFiles, ", "))
+	fmt.Fprintf(w, "samples: %d\n", s.TotalSamples)
+	fmt.Fprintf(w, "ok: %d\n", s.OKSamples)
+	fmt.Fprintf(w, "failed: %d\n", s.FailedSamples)
+	fmt.Fprintf(w, "success_rate: %.2f%%\n", s.SuccessRate*100.0)
+	fmt.Fprintf(
+		w,
+		"latency_ms: min=%.3f p50=%.3f p95=%.3f max=%.3f avg=%.3f\n",
+		s.LatencyMS.MinMS,
+		s.LatencyMS.P50MS,
+		s.LatencyMS.P95MS,
+		s.LatencyMS.MaxMS,
+		s.LatencyMS.AvgMS,
+	)
+
+	fmt.Fprintln(w, "status_codes:")
+	if len(s.StatusCodes) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, item := range s.StatusCodes {
+			fmt.Fprintf(w, "  %d: %d\n", item.StatusCode, item.Count)
+		}
+	}
+
+	fmt.Fprintln(w, "errors:")
+	if len(s.Errors) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, item := range s.Errors {
+			fmt.Fprintf(w, "  %s: %d\n", item.Value, item.Count)
+		}
+	}
+}
+
+func splitCSV(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+
+	return out
 }
 
 func newRunID() string {

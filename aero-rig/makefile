@@ -1,4 +1,4 @@
-.PHONY: fmt test build smoke clean
+.PHONY: fmt test build smoke summary clean
 
 fmt:
 	gofmt -w aero-rig internal
@@ -12,6 +12,9 @@ build:
 
 smoke:
 	bash scripts/smoke_http.sh
+
+summary:
+	go run ./aero-rig summary-http -in out/smoke_http.jsonl
 
 clean:
 	rm -rf bin out

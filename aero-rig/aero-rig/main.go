@@ -36,6 +36,8 @@ func main() {
 		code = runProofChat(os.Args[2:])
 	case "run-suite":
 		code = runSuite(os.Args[2:])
+	case "summary-chat-stream":
+		code = runSummaryChatStream(os.Args[2:])
 	case "probe-chat-stream":
 		code = runProbeChatStream(os.Args[2:])
 	case "probe-chat":
@@ -72,6 +74,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  aerorig probe-chat-stream -name ollama -target http://127.0.0.1:11434/v1/chat/completions -model llama3.2:3b -prompt 'Say pong.' -count 3")
 	fmt.Fprintln(w, "  probe-chat-stream  measure streaming OpenAI-compatible chat completion TTFT")
 	fmt.Fprintln(w, "  aerorig run-suite -manifest examples/local-suite.json")
+	fmt.Fprintln(w, "  summary-chat-stream  summarize streaming chat probe JSONL output")
+	fmt.Fprintln(w, "  aerorig summary-chat-stream -in out/aerocache_chat_stream_twice.jsonl")
 	fmt.Fprintln(w, "  aerorig proof-chat -in out/aerocache_chat_twice.jsonl -require-cache-hit -require-verified-hit -require-miss-hit")
 }
 
@@ -764,4 +768,134 @@ func runProbeChatStream(args []string) int {
 	}
 
 	return exitCode
+}
+func runSummaryChatStream(args []string) int {
+	fs := flag.NewFlagSet("summary-chat-stream", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	inRaw := fs.String("in", "", "comma-separated JSONL input files")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	paths := splitCSV(*inRaw)
+	paths = append(paths, fs.Args()...)
+
+	if len(paths) == 0 {
+		fmt.Fprintln(os.Stderr, "-in or positional JSONL file is required")
+		return 2
+	}
+
+	summary, err := report.SummarizeChatStream(paths)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "summarize chat stream: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(summary); err != nil {
+			fmt.Fprintf(os.Stderr, "write summary: %v\n", err)
+			return 1
+		}
+	case "text":
+		printChatStreamSummary(os.Stdout, summary)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if summary.FailedSamples > 0 {
+		return 1
+	}
+
+	return 0
+}
+
+func printChatStreamSummary(w io.Writer, s report.ChatStreamSummary) {
+	fmt.Fprintln(w, "Streaming chat summary")
+	fmt.Fprintf(w, "schema: %s\n", s.SchemaVersion)
+	fmt.Fprintf(w, "files: %s\n", strings.Join(s.SourceFiles, ", "))
+	fmt.Fprintf(w, "samples: %d\n", s.TotalSamples)
+	fmt.Fprintf(w, "ok: %d\n", s.OKSamples)
+	fmt.Fprintf(w, "failed: %d\n", s.FailedSamples)
+	fmt.Fprintf(w, "success_rate: %.2f%%\n", s.SuccessRate*100.0)
+	fmt.Fprintf(
+		w,
+		"ttft_ms: min=%.3f p50=%.3f p95=%.3f max=%.3f avg=%.3f\n",
+		s.TTFTMS.MinMS,
+		s.TTFTMS.P50MS,
+		s.TTFTMS.P95MS,
+		s.TTFTMS.MaxMS,
+		s.TTFTMS.AvgMS,
+	)
+	fmt.Fprintf(
+		w,
+		"duration_ms: min=%.3f p50=%.3f p95=%.3f max=%.3f avg=%.3f\n",
+		s.DurationMS.MinMS,
+		s.DurationMS.P50MS,
+		s.DurationMS.P95MS,
+		s.DurationMS.MaxMS,
+		s.DurationMS.AvgMS,
+	)
+	fmt.Fprintf(
+		w,
+		"sse_events: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.SSEEvents.Min,
+		s.SSEEvents.P50,
+		s.SSEEvents.P95,
+		s.SSEEvents.Max,
+		s.SSEEvents.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"content_chunks: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.ContentChunks.Min,
+		s.ContentChunks.P50,
+		s.ContentChunks.P95,
+		s.ContentChunks.Max,
+		s.ContentChunks.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"prompt_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.PromptTokens.Min,
+		s.PromptTokens.P50,
+		s.PromptTokens.P95,
+		s.PromptTokens.Max,
+		s.PromptTokens.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"output_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.OutputTokens.Min,
+		s.OutputTokens.P50,
+		s.OutputTokens.P95,
+		s.OutputTokens.Max,
+		s.OutputTokens.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"total_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.TotalTokens.Min,
+		s.TotalTokens.P50,
+		s.TotalTokens.P95,
+		s.TotalTokens.Max,
+		s.TotalTokens.Avg,
+	)
+	fmt.Fprintf(w, "answer_hash_count: %d\n", s.AnswerHashCount)
+	fmt.Fprintf(w, "answer_stable: %t\n", s.AnswerStable)
+	fmt.Fprintf(w, "verified_samples: %d\n", s.VerifiedSamples)
+	fmt.Fprintf(w, "verified_hit_samples: %d\n", s.VerifiedHitSamples)
+
+	printStringCounts(w, "cache_results", s.CacheResults)
+	printStringCounts(w, "tiers", s.Tiers)
+	printStatusCounts(w, "status_codes", s.StatusCodes)
+	printStringCounts(w, "finish_reasons", s.FinishReasons)
+	printStringCounts(w, "response_models", s.ResponseModels)
+	printStringCounts(w, "errors", s.Errors)
 }

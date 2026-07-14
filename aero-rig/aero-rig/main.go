@@ -27,6 +27,8 @@ func main() {
 	switch os.Args[1] {
 	case "probe-http":
 		code = runProbeHTTP(os.Args[2:])
+	case "summary-chat":
+		code = runSummaryChat(os.Args[2:])
 	case "summary-http":
 		code = runSummaryHTTP(os.Args[2:])
 	case "probe-chat":
@@ -56,6 +58,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  aerorig summary-http -in out/smoke_http.jsonl")
 	fmt.Fprintln(w, "  aerorig probe-chat -name ollama -target http://127.0.0.1:11434/v1/chat/completions -model llama3.2:3b -prompt 'Say pong.' -count 3")
 	fmt.Fprintln(w, "  aerorig probe-chat -name aerocache -target http://127.0.0.1:8080/v1/chat/completions -model tiny -prompt 'Say pong.' -count 2 -out out/chat.jsonl")
+	fmt.Fprintln(w, "  summary-chat   summarize OpenAI-compatible chat probe JSONL output")
+	fmt.Fprintln(w, "  aerorig summary-chat -in out/aerocache_chat_twice.jsonl")
 }
 
 func runProbeHTTP(args []string) int {
@@ -130,6 +134,133 @@ func runProbeHTTP(args []string) int {
 	}
 
 	return exitCode
+}
+
+func runSummaryChat(args []string) int {
+	fs := flag.NewFlagSet("summary-chat", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	inRaw := fs.String("in", "", "comma-separated JSONL input files")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	paths := splitCSV(*inRaw)
+	paths = append(paths, fs.Args()...)
+
+	if len(paths) == 0 {
+		fmt.Fprintln(os.Stderr, "-in or positional JSONL file is required")
+		return 2
+	}
+
+	summary, err := report.SummarizeChat(paths)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "summarize chat: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(summary); err != nil {
+			fmt.Fprintf(os.Stderr, "write summary: %v\n", err)
+			return 1
+		}
+	case "text":
+		printChatSummary(os.Stdout, summary)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if summary.FailedSamples > 0 {
+		return 1
+	}
+
+	return 0
+}
+
+func printChatSummary(w io.Writer, s report.ChatSummary) {
+	fmt.Fprintln(w, "Chat summary")
+	fmt.Fprintf(w, "schema: %s\n", s.SchemaVersion)
+	fmt.Fprintf(w, "files: %s\n", strings.Join(s.SourceFiles, ", "))
+	fmt.Fprintf(w, "samples: %d\n", s.TotalSamples)
+	fmt.Fprintf(w, "ok: %d\n", s.OKSamples)
+	fmt.Fprintf(w, "failed: %d\n", s.FailedSamples)
+	fmt.Fprintf(w, "success_rate: %.2f%%\n", s.SuccessRate*100.0)
+	fmt.Fprintf(
+		w,
+		"latency_ms: min=%.3f p50=%.3f p95=%.3f max=%.3f avg=%.3f\n",
+		s.LatencyMS.MinMS,
+		s.LatencyMS.P50MS,
+		s.LatencyMS.P95MS,
+		s.LatencyMS.MaxMS,
+		s.LatencyMS.AvgMS,
+	)
+	fmt.Fprintf(
+		w,
+		"prompt_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.PromptTokens.Min,
+		s.PromptTokens.P50,
+		s.PromptTokens.P95,
+		s.PromptTokens.Max,
+		s.PromptTokens.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"output_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.OutputTokens.Min,
+		s.OutputTokens.P50,
+		s.OutputTokens.P95,
+		s.OutputTokens.Max,
+		s.OutputTokens.Avg,
+	)
+	fmt.Fprintf(
+		w,
+		"total_tokens: min=%d p50=%d p95=%d max=%d avg=%.3f\n",
+		s.TotalTokens.Min,
+		s.TotalTokens.P50,
+		s.TotalTokens.P95,
+		s.TotalTokens.Max,
+		s.TotalTokens.Avg,
+	)
+	fmt.Fprintf(w, "answer_hash_count: %d\n", s.AnswerHashCount)
+	fmt.Fprintf(w, "answer_stable: %t\n", s.AnswerStable)
+	fmt.Fprintf(w, "verified_samples: %d\n", s.VerifiedSamples)
+
+	printStringCounts(w, "cache_results", s.CacheResults)
+	printStringCounts(w, "tiers", s.Tiers)
+	printStatusCounts(w, "status_codes", s.StatusCodes)
+	printStringCounts(w, "finish_reasons", s.FinishReasons)
+	printStringCounts(w, "response_models", s.ResponseModels)
+	printStringCounts(w, "errors", s.Errors)
+}
+
+func printStringCounts(w io.Writer, label string, items []report.CountByString) {
+	fmt.Fprintf(w, "%s:\n", label)
+	if len(items) == 0 {
+		fmt.Fprintln(w, "  none")
+		return
+	}
+
+	for _, item := range items {
+		fmt.Fprintf(w, "  %s: %d\n", item.Value, item.Count)
+	}
+}
+
+func printStatusCounts(w io.Writer, label string, items []report.CountByStatus) {
+	fmt.Fprintf(w, "%s:\n", label)
+	if len(items) == 0 {
+		fmt.Fprintln(w, "  none")
+		return
+	}
+
+	for _, item := range items {
+		fmt.Fprintf(w, "  %d: %d\n", item.StatusCode, item.Count)
+	}
 }
 
 func runSummaryHTTP(args []string) int {

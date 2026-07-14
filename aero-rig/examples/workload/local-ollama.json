@@ -1,0 +1,25 @@
+{
+  "schema_version": "aerorig.workload.v1",
+  "name": "local-ollama-workload",
+  "output_dir": "out/suites/local-ollama-workload",
+  "targets": [
+    {
+      "name": "ollama",
+      "kind": "both",
+      "url": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ],
+  "cases": [
+    {
+      "name": "exact-pong",
+      "prompt": "Return exactly: pong"
+    },
+    {
+      "name": "short-summary",
+      "prompt": "Summarize this in one sentence: Aero measures cache hits, latency, TTFT, and cost evidence for repeated inference requests."
+    }
+  ]
+}

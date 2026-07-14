@@ -1,0 +1,40 @@
+{
+  "name": "local-ollama-workload",
+  "output_dir": "out/suites/local-ollama-workload",
+  "chat": [
+    {
+      "name": "ollama-exact-pong-chat",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s"
+    },
+    {
+      "name": "ollama-short-summary-chat",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Summarize this in one sentence: Aero measures cache hits, latency, TTFT, and cost evidence for repeated inference requests.",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ],
+  "chat_stream": [
+    {
+      "name": "ollama-exact-pong-stream",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s"
+    },
+    {
+      "name": "ollama-short-summary-stream",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Summarize this in one sentence: Aero measures cache hits, latency, TTFT, and cost evidence for repeated inference requests.",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ]
+}

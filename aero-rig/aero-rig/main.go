@@ -17,6 +17,7 @@ import (
 	"aero-rig/internal/probe"
 	"aero-rig/internal/report"
 	"aero-rig/internal/suite"
+	"aero-rig/internal/workload"
 )
 
 func main() {
@@ -45,6 +46,8 @@ func main() {
 		code = runProbeChatStream(os.Args[2:])
 	case "compare-matrix":
 		code = runCompareMatrix(os.Args[2:])
+	case "build-suite":
+		code = runBuildSuite(os.Args[2:])
 	case "probe-chat":
 		code = runProbeChat(os.Args[2:])
 	case "help", "-h", "--help":
@@ -81,6 +84,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  aerorig run-suite -manifest examples/local-suite.json")
 	fmt.Fprintln(w, "  summary-chat-stream  summarize streaming chat probe JSONL output")
 	fmt.Fprintln(w, "  compare-matrix compare two aerorig.matrix.v1 files")
+	fmt.Fprintln(w, "  build-suite    compile workload manifest into suite manifest")
+	fmt.Fprintln(w, "  aerorig build-suite -workload examples/workloads/local.json -out out/suites/local/generated-suite.json")
 	fmt.Fprintln(w, "  aerorig compare-matrix -baseline out/base/matrix.json -candidate out/candidate/matrix.json")
 	fmt.Fprintln(w, "  aerorig build-matrix -suite-result out/suites/local/suite_result.json -out out/suites/local/matrix.json")
 	fmt.Fprintln(w, "  build-matrix   build normalized latency matrix from suite_result.json")
@@ -1150,4 +1155,67 @@ func writeJSONFile(path string, v any) error {
 	}
 
 	return nil
+}
+
+func runBuildSuite(args []string) int {
+	fs := flag.NewFlagSet("build-suite", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	workloadPath := fs.String("workload", "", "workload manifest JSON path")
+	outPath := fs.String("out", "", "output suite manifest JSON path")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *workloadPath == "" {
+		fmt.Fprintln(os.Stderr, "-workload is required")
+		return 2
+	}
+
+	m, err := workload.Load(*workloadPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "load workload: %v\n", err)
+		return 1
+	}
+
+	s := workload.BuildSuite(m)
+
+	if *outPath != "" {
+		if err := workload.WriteSuite(*outPath, s); err != nil {
+			fmt.Fprintf(os.Stderr, "write suite: %v\n", err)
+			return 1
+		}
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(s); err != nil {
+			fmt.Fprintf(os.Stderr, "write suite: %v\n", err)
+			return 1
+		}
+	case "text":
+		printBuiltSuite(os.Stdout, *workloadPath, *outPath, s)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	return 0
+}
+
+func printBuiltSuite(w io.Writer, workloadPath string, outPath string, s suite.Manifest) {
+	fmt.Fprintln(w, "Built suite")
+	fmt.Fprintf(w, "workload: %s\n", workloadPath)
+	if strings.TrimSpace(outPath) != "" {
+		fmt.Fprintf(w, "written: %s\n", outPath)
+	}
+	fmt.Fprintf(w, "suite: %s\n", s.Name)
+	fmt.Fprintf(w, "output_dir: %s\n", s.OutputDir)
+	fmt.Fprintf(w, "http: %d\n", len(s.HTTP))
+	fmt.Fprintf(w, "chat: %d\n", len(s.Chat))
+	fmt.Fprintf(w, "chat_stream: %d\n", len(s.ChatStream))
 }

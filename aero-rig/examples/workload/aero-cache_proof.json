@@ -1,0 +1,26 @@
+{
+  "schema_version": "aerorig.workload.v1",
+  "name": "aerocache-proof-workload",
+  "output_dir": "out/suites/aerocache-proof-workload",
+  "targets": [
+    {
+      "name": "aerocache",
+      "kind": "both",
+      "url": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ],
+  "cases": [
+    {
+      "name": "exact-pong",
+      "prompt": "Return exactly: pong",
+      "proof": {
+        "require_cache_hit": true,
+        "require_verified_hit": true,
+        "require_miss_hit": true
+      }
+    }
+  ]
+}

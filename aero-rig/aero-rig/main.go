@@ -31,6 +31,8 @@ func main() {
 		code = runSummaryChat(os.Args[2:])
 	case "summary-http":
 		code = runSummaryHTTP(os.Args[2:])
+	case "proof-chat":
+		code = runProofChat(os.Args[2:])
 	case "probe-chat":
 		code = runProbeChat(os.Args[2:])
 	case "help", "-h", "--help":
@@ -60,6 +62,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  aerorig probe-chat -name aerocache -target http://127.0.0.1:8080/v1/chat/completions -model tiny -prompt 'Say pong.' -count 2 -out out/chat.jsonl")
 	fmt.Fprintln(w, "  summary-chat   summarize OpenAI-compatible chat probe JSONL output")
 	fmt.Fprintln(w, "  aerorig summary-chat -in out/aerocache_chat_twice.jsonl")
+	fmt.Fprintln(w, "  proof-chat     check repeated chat probe evidence")
+	fmt.Fprintln(w, "  aerorig proof-chat -in out/aerocache_chat_twice.jsonl -require-cache-hit -require-verified-hit -require-miss-hit")
 }
 
 func runProbeHTTP(args []string) int {
@@ -464,4 +468,107 @@ func splitCSV(raw string) []string {
 
 func newRunID() string {
 	return fmt.Sprintf("%d-%d", time.Now().UTC().UnixNano(), os.Getpid())
+}
+
+func runProofChat(args []string) int {
+	fs := flag.NewFlagSet("proof-chat", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	inRaw := fs.String("in", "", "comma-separated JSONL input files")
+	format := fs.String("format", "text", "output format: text or json")
+	requireCacheHit := fs.Bool("require-cache-hit", false, "require at least one X-Aero-Cache: hit sample")
+	requireVerifiedHit := fs.Bool("require-verified-hit", false, "require at least one verified cache-hit sample")
+	requireMissHit := fs.Bool("require-miss-hit", false, "require a miss before a later hit")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	paths := splitCSV(*inRaw)
+	paths = append(paths, fs.Args()...)
+
+	if len(paths) == 0 {
+		fmt.Fprintln(os.Stderr, "-in or positional JSONL file is required")
+		return 2
+	}
+
+	proof, err := report.BuildChatProof(paths, report.ChatProofOptions{
+		RequireCacheHit:    *requireCacheHit,
+		RequireVerifiedHit: *requireVerifiedHit,
+		RequireMissThenHit: *requireMissHit,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "proof chat: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(proof); err != nil {
+			fmt.Fprintf(os.Stderr, "write proof: %v\n", err)
+			return 1
+		}
+	case "text":
+		printChatProof(os.Stdout, proof)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if !proof.Passed {
+		return 1
+	}
+
+	return 0
+}
+
+func printChatProof(w io.Writer, p report.ChatProof) {
+	fmt.Fprintln(w, "Chat proof")
+	fmt.Fprintf(w, "schema: %s\n", p.SchemaVersion)
+	fmt.Fprintf(w, "files: %s\n", strings.Join(p.SourceFiles, ", "))
+	fmt.Fprintf(w, "passed: %t\n", p.Passed)
+	fmt.Fprintf(w, "samples: %d\n", p.TotalSamples)
+	fmt.Fprintf(w, "ok: %d\n", p.OKSamples)
+	fmt.Fprintf(w, "failed: %d\n", p.FailedSamples)
+	fmt.Fprintf(w, "answer_hash_count: %d\n", p.AnswerHashCount)
+	fmt.Fprintf(w, "answer_stable: %t\n", p.AnswerStable)
+	fmt.Fprintf(w, "cache_hit_samples: %d\n", p.CacheHitSamples)
+	fmt.Fprintf(w, "cache_miss_samples: %d\n", p.CacheMissSamples)
+	fmt.Fprintf(w, "verified_samples: %d\n", p.VerifiedSamples)
+	fmt.Fprintf(w, "verified_hit_samples: %d\n", p.VerifiedHitSamples)
+	fmt.Fprintf(w, "miss_then_hit: %t\n", p.MissThenHit)
+
+	fmt.Fprintln(w, "assertions:")
+	for _, a := range p.Assertions {
+		status := "FAIL"
+		if a.Passed {
+			status = "PASS"
+		}
+		fmt.Fprintf(w, "  %s %s — %s\n", status, a.Name, a.Detail)
+	}
+
+	fmt.Fprintln(w, "samples:")
+	for _, s := range p.Samples {
+		fmt.Fprintf(
+			w,
+			"  sample=%d ok=%t status=%d latency_ms=%.3f cache=%s verified=%s answer_sha256=%s error=%s\n",
+			s.Sample,
+			s.OK,
+			s.StatusCode,
+			s.DurationMS,
+			emptyAsDash(s.Cache),
+			emptyAsDash(s.Verified),
+			emptyAsDash(s.AnswerSHA256),
+			emptyAsDash(s.Error),
+		)
+	}
+}
+
+func emptyAsDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "-"
+	}
+	return s
 }

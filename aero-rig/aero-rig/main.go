@@ -662,6 +662,15 @@ func printSuiteResult(w io.Writer, r suite.SuiteResult) {
 		}
 	}
 
+	fmt.Fprintln(w, "stream_artifacts:")
+	if len(r.StreamArtifacts) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, a := range r.StreamArtifacts {
+			fmt.Fprintf(w, "  %s: %s\n", a.Name, a.Path)
+		}
+	}
+
 	fmt.Fprintln(w, "errors:")
 	if len(r.Errors) == 0 {
 		fmt.Fprintln(w, "  none")

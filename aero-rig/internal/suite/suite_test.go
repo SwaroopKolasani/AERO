@@ -3,6 +3,7 @@ package suite
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -101,11 +102,74 @@ func TestRunSuiteChatWithProof(t *testing.T) {
 	assertFileExists(t, filepath.Join(dir, "suite_result.json"))
 }
 
+func TestRunSuiteChatStream(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if calls == 1 {
+			w.Header().Set("X-Aero-Cache", "miss")
+			w.Header().Set("X-Aero-Verified", "false")
+		} else {
+			w.Header().Set("X-Aero-Cache", "hit")
+			w.Header().Set("X-Aero-Verified", "true")
+		}
+		w.Header().Set("X-Aero-Tier", "A")
+		w.Header().Set("Content-Type", "text/event-stream")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatal("expected flusher")
+		}
+
+		fmt.Fprint(w, `data: {"id":"chatcmpl-test","model":"tiny","choices":[{"delta":{"role":"assistant"}}]}`+"\n\n")
+		flusher.Flush()
+		fmt.Fprint(w, `data: {"id":"chatcmpl-test","model":"tiny","choices":[{"delta":{"content":"po"}}]}`+"\n\n")
+		flusher.Flush()
+		fmt.Fprint(w, `data: {"id":"chatcmpl-test","model":"tiny","choices":[{"delta":{"content":"ng"},"finish_reason":"stop"}]}`+"\n\n")
+		flusher.Flush()
+		fmt.Fprint(w, `data: {"id":"chatcmpl-test","model":"tiny","choices":[],"usage":{"prompt_tokens":3,"completion_tokens":1,"total_tokens":4}}`+"\n\n")
+		flusher.Flush()
+		fmt.Fprint(w, "data: [DONE]\n\n")
+		flusher.Flush()
+	}))
+	defer srv.Close()
+
+	dir := t.TempDir()
+
+	res, err := Run(context.Background(), Manifest{
+		Name:      "stream suite",
+		OutputDir: dir,
+		ChatStream: []ChatStreamProbeSpec{
+			{
+				Name:    "stream proof",
+				Target:  srv.URL,
+				Model:   "tiny",
+				Prompt:  "ping",
+				Count:   2,
+				Timeout: "1s",
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Passed {
+		t.Fatalf("expected suite to pass: %+v", res.Errors)
+	}
+	if len(res.StreamArtifacts) != 2 {
+		t.Fatalf("stream artifacts = %d, want 2", len(res.StreamArtifacts))
+	}
+
+	assertFileExists(t, filepath.Join(dir, "stream-proof.chat_stream.jsonl"))
+	assertFileExists(t, filepath.Join(dir, "stream-proof.chat_stream.summary.json"))
+	assertFileExists(t, filepath.Join(dir, "suite_result.json"))
+}
+
 func TestLoadManifest(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "suite.json")
 
-	raw := `{"name":"local","http":[{"name":"health","target":"http://127.0.0.1:8080/healthz"}]}`
+	raw := `{"name":"local","http":[{"name":"health","target":"http://127.0.0.1:8080/healthz"}],"chat_stream":[{"name":"stream","target":"http://127.0.0.1:8080/v1/chat/completions","model":"tiny","prompt":"ping"}]}`
 	if err := os.WriteFile(path, []byte(raw), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -119,6 +183,9 @@ func TestLoadManifest(t *testing.T) {
 	}
 	if len(m.HTTP) != 1 {
 		t.Fatalf("http probes=%d", len(m.HTTP))
+	}
+	if len(m.ChatStream) != 1 {
+		t.Fatalf("chat_stream probes=%d", len(m.ChatStream))
 	}
 
 	b, err := json.Marshal(m)

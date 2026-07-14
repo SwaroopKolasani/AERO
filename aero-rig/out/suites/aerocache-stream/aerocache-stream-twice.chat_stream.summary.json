@@ -1,0 +1,95 @@
+{
+  "schema_version": "aerorig.chat_stream_summary.v1",
+  "probe": "chat_stream_summary",
+  "source_files": [
+    "out/suites/aerocache-stream/aerocache-stream-twice.chat_stream.jsonl"
+  ],
+  "total_samples": 2,
+  "ok_samples": 2,
+  "failed_samples": 0,
+  "success_rate": 1,
+  "ttft_ms": {
+    "min_ms": 0.643,
+    "p50_ms": 0.643,
+    "p95_ms": 14.637,
+    "max_ms": 14.637,
+    "avg_ms": 7.64
+  },
+  "duration_ms": {
+    "min_ms": 0.653,
+    "p50_ms": 0.653,
+    "p95_ms": 14.65,
+    "max_ms": 14.65,
+    "avg_ms": 7.652
+  },
+  "sse_events": {
+    "min": 4,
+    "p50": 4,
+    "p95": 4,
+    "max": 4,
+    "avg": 4
+  },
+  "content_chunks": {
+    "min": 2,
+    "p50": 2,
+    "p95": 2,
+    "max": 2,
+    "avg": 2
+  },
+  "prompt_tokens": {
+    "min": 29,
+    "p50": 29,
+    "p95": 29,
+    "max": 29,
+    "avg": 29
+  },
+  "output_tokens": {
+    "min": 3,
+    "p50": 3,
+    "p95": 3,
+    "max": 3,
+    "avg": 3
+  },
+  "total_tokens": {
+    "min": 32,
+    "p50": 32,
+    "p95": 32,
+    "max": 32,
+    "avg": 32
+  },
+  "answer_hash_count": 1,
+  "answer_stable": true,
+  "cache_results": [
+    {
+      "value": "hit",
+      "count": 2
+    }
+  ],
+  "tiers": [
+    {
+      "value": "cache-l1",
+      "count": 2
+    }
+  ],
+  "verified_samples": 2,
+  "verified_hit_samples": 2,
+  "status_codes": [
+    {
+      "status_code": 200,
+      "count": 2
+    }
+  ],
+  "finish_reasons": [
+    {
+      "value": "stop",
+      "count": 2
+    }
+  ],
+  "response_models": [
+    {
+      "value": "llama3.2:3b",
+      "count": 2
+    }
+  ],
+  "errors": []
+}

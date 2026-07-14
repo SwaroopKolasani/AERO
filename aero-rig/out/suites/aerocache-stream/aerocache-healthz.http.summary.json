@@ -1,0 +1,25 @@
+{
+  "schema_version": "aerorig.http_summary.v1",
+  "probe": "http_summary",
+  "source_files": [
+    "out/suites/aerocache-stream/aerocache-healthz.http.jsonl"
+  ],
+  "total_samples": 3,
+  "ok_samples": 3,
+  "failed_samples": 0,
+  "success_rate": 1,
+  "latency_ms": {
+    "min_ms": 0.151,
+    "p50_ms": 1.211,
+    "p95_ms": 57.436,
+    "max_ms": 57.436,
+    "avg_ms": 19.599
+  },
+  "status_codes": [
+    {
+      "status_code": 200,
+      "count": 3
+    }
+  ],
+  "errors": []
+}

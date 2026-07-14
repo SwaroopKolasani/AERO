@@ -17,10 +17,11 @@ import (
 const ResultSchemaV1 = "aerorig.suite_result.v1"
 
 type Manifest struct {
-	Name      string          `json:"name"`
-	OutputDir string          `json:"output_dir,omitempty"`
-	HTTP      []HTTPProbeSpec `json:"http,omitempty"`
-	Chat      []ChatProbeSpec `json:"chat,omitempty"`
+	Name       string                `json:"name"`
+	OutputDir  string                `json:"output_dir,omitempty"`
+	HTTP       []HTTPProbeSpec       `json:"http,omitempty"`
+	Chat       []ChatProbeSpec       `json:"chat,omitempty"`
+	ChatStream []ChatStreamProbeSpec `json:"chat_stream,omitempty"`
 }
 
 type HTTPProbeSpec struct {
@@ -43,6 +44,17 @@ type ChatProbeSpec struct {
 	Proof      *ProofSpec `json:"proof,omitempty"`
 }
 
+type ChatStreamProbeSpec struct {
+	Name       string `json:"name"`
+	Target     string `json:"target"`
+	Model      string `json:"model"`
+	Prompt     string `json:"prompt,omitempty"`
+	PromptFile string `json:"prompt_file,omitempty"`
+	Count      int    `json:"count,omitempty"`
+	Timeout    string `json:"timeout,omitempty"`
+	APIKeyEnv  string `json:"api_key_env,omitempty"`
+}
+
 type ProofSpec struct {
 	RequireCacheHit    bool `json:"require_cache_hit,omitempty"`
 	RequireVerifiedHit bool `json:"require_verified_hit,omitempty"`
@@ -55,15 +67,16 @@ type Artifact struct {
 }
 
 type SuiteResult struct {
-	SchemaVersion string     `json:"schema_version"`
-	SuiteName     string     `json:"suite_name"`
-	OutputDir     string     `json:"output_dir"`
-	StartedAt     string     `json:"started_at"`
-	DurationMS    float64    `json:"duration_ms"`
-	Passed        bool       `json:"passed"`
-	HTTPArtifacts []Artifact `json:"http_artifacts,omitempty"`
-	ChatArtifacts []Artifact `json:"chat_artifacts,omitempty"`
-	Errors        []string   `json:"errors,omitempty"`
+	SchemaVersion   string     `json:"schema_version"`
+	SuiteName       string     `json:"suite_name"`
+	OutputDir       string     `json:"output_dir"`
+	StartedAt       string     `json:"started_at"`
+	DurationMS      float64    `json:"duration_ms"`
+	Passed          bool       `json:"passed"`
+	HTTPArtifacts   []Artifact `json:"http_artifacts,omitempty"`
+	ChatArtifacts   []Artifact `json:"chat_artifacts,omitempty"`
+	StreamArtifacts []Artifact `json:"stream_artifacts,omitempty"`
+	Errors          []string   `json:"errors,omitempty"`
 }
 
 func LoadManifest(path string) (Manifest, error) {
@@ -116,6 +129,14 @@ func Run(ctx context.Context, m Manifest) (SuiteResult, error) {
 	for _, spec := range m.Chat {
 		artifacts, ok := runChatSpec(ctx, outDir, runID, spec, &res)
 		res.ChatArtifacts = append(res.ChatArtifacts, artifacts...)
+		if !ok {
+			res.Passed = false
+		}
+	}
+
+	for _, spec := range m.ChatStream {
+		artifacts, ok := runChatStreamSpec(ctx, outDir, runID, spec, &res)
+		res.StreamArtifacts = append(res.StreamArtifacts, artifacts...)
 		if !ok {
 			res.Passed = false
 		}
@@ -286,6 +307,82 @@ func runChatSpec(ctx context.Context, outDir string, runID string, spec ChatProb
 	}
 
 	return artifacts, ok
+}
+
+func runChatStreamSpec(ctx context.Context, outDir string, runID string, spec ChatStreamProbeSpec, suiteResult *SuiteResult) ([]Artifact, bool) {
+	name := sanitizeName(defaultString(spec.Name, "chat-stream"))
+	count := defaultInt(spec.Count, 1)
+	timeout := parseDurationDefault(spec.Timeout, 60*time.Second)
+
+	rawPath := filepath.Join(outDir, name+".chat_stream.jsonl")
+	summaryPath := filepath.Join(outDir, name+".chat_stream.summary.json")
+
+	prompt := spec.Prompt
+	if strings.TrimSpace(spec.PromptFile) != "" {
+		b, err := os.ReadFile(spec.PromptFile)
+		if err != nil {
+			suiteResult.Errors = append(suiteResult.Errors, fmt.Sprintf("%s: read prompt file: %v", spec.Name, err))
+			return nil, false
+		}
+		prompt = string(b)
+	}
+
+	apiKey := ""
+	if strings.TrimSpace(spec.APIKeyEnv) != "" {
+		apiKey = os.Getenv(strings.TrimSpace(spec.APIKeyEnv))
+	}
+
+	f, err := os.Create(rawPath)
+	if err != nil {
+		suiteResult.Errors = append(suiteResult.Errors, fmt.Sprintf("%s: create raw output: %v", spec.Name, err))
+		return nil, false
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	client := &http.Client{Timeout: timeout}
+	ok := true
+
+	for i := 1; i <= count; i++ {
+		sampleCtx, cancel := context.WithTimeout(ctx, timeout)
+		r := probe.ChatStream(sampleCtx, client, probe.ChatStreamRequest{
+			RunID:      runID,
+			Sample:     i,
+			TargetName: spec.Name,
+			TargetURL:  spec.Target,
+			Model:      spec.Model,
+			Prompt:     prompt,
+			APIKey:     apiKey,
+			Timeout:    timeout,
+		})
+		cancel()
+
+		if err := enc.Encode(r); err != nil {
+			suiteResult.Errors = append(suiteResult.Errors, fmt.Sprintf("%s: write raw output: %v", spec.Name, err))
+			return []Artifact{{Name: spec.Name + " raw", Path: rawPath}}, false
+		}
+		if !r.OK {
+			ok = false
+		}
+	}
+
+	summary, err := report.SummarizeChatStream([]string{rawPath})
+	if err != nil {
+		suiteResult.Errors = append(suiteResult.Errors, fmt.Sprintf("%s: summarize chat stream: %v", spec.Name, err))
+		return []Artifact{{Name: spec.Name + " raw", Path: rawPath}}, false
+	}
+	if err := writeJSON(summaryPath, summary); err != nil {
+		suiteResult.Errors = append(suiteResult.Errors, fmt.Sprintf("%s: write chat stream summary: %v", spec.Name, err))
+		return []Artifact{{Name: spec.Name + " raw", Path: rawPath}}, false
+	}
+	if summary.FailedSamples > 0 {
+		ok = false
+	}
+
+	return []Artifact{
+		{Name: spec.Name + " raw", Path: rawPath},
+		{Name: spec.Name + " summary", Path: summaryPath},
+	}, ok
 }
 
 func writeJSON(path string, v any) error {

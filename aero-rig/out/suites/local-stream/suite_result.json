@@ -1,0 +1,18 @@
+{
+  "schema_version": "aerorig.suite_result.v1",
+  "suite_name": "local-stream",
+  "output_dir": "out/suites/local-stream",
+  "started_at": "2026-07-14T01:11:45.707955Z",
+  "duration_ms": 8432.462,
+  "passed": true,
+  "stream_artifacts": [
+    {
+      "name": "ollama-stream raw",
+      "path": "out/suites/local-stream/ollama-stream.chat_stream.jsonl"
+    },
+    {
+      "name": "ollama-stream summary",
+      "path": "out/suites/local-stream/ollama-stream.chat_stream.summary.json"
+    }
+  ]
+}

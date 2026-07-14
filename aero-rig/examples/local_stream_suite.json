@@ -1,0 +1,14 @@
+{
+  "name": "local-stream",
+  "output_dir": "out/suites/local-stream",
+  "chat_stream": [
+    {
+      "name": "ollama-stream",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ]
+}

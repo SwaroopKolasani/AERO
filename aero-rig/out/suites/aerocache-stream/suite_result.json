@@ -1,0 +1,28 @@
+{
+  "schema_version": "aerorig.suite_result.v1",
+  "suite_name": "aerocache-stream",
+  "output_dir": "out/suites/aerocache-stream",
+  "started_at": "2026-07-14T01:12:09.805883Z",
+  "duration_ms": 76.147,
+  "passed": true,
+  "http_artifacts": [
+    {
+      "name": "aerocache-healthz raw",
+      "path": "out/suites/aerocache-stream/aerocache-healthz.http.jsonl"
+    },
+    {
+      "name": "aerocache-healthz summary",
+      "path": "out/suites/aerocache-stream/aerocache-healthz.http.summary.json"
+    }
+  ],
+  "stream_artifacts": [
+    {
+      "name": "aerocache-stream-twice raw",
+      "path": "out/suites/aerocache-stream/aerocache-stream-twice.chat_stream.jsonl"
+    },
+    {
+      "name": "aerocache-stream-twice summary",
+      "path": "out/suites/aerocache-stream/aerocache-stream-twice.chat_stream.summary.json"
+    }
+  ]
+}

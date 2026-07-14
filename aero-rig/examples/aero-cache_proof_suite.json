@@ -1,0 +1,27 @@
+{
+  "name": "aerocache-proof",
+  "output_dir": "out/suites/aerocache-proof",
+  "http": [
+    {
+      "name": "aerocache-healthz",
+      "target": "http://127.0.0.1:8080/healthz",
+      "count": 3,
+      "timeout": "2s"
+    }
+  ],
+  "chat": [
+    {
+      "name": "aerocache-chat-twice",
+      "target": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s",
+      "proof": {
+        "require_cache_hit": true,
+        "require_verified_hit": true,
+        "require_miss_hit": true
+      }
+    }
+  ]
+}

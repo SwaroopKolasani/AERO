@@ -1,0 +1,22 @@
+{
+  "name": "local",
+  "output_dir": "out/suites/local",
+  "http": [
+    {
+      "name": "ollama-tags",
+      "target": "http://127.0.0.1:11434/api/tags",
+      "count": 3,
+      "timeout": "2s"
+    }
+  ],
+  "chat": [
+    {
+      "name": "ollama-chat",
+      "target": "http://127.0.0.1:11434/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ]
+}

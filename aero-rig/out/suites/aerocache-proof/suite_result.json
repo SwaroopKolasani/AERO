@@ -1,0 +1,32 @@
+{
+  "schema_version": "aerorig.suite_result.v1",
+  "suite_name": "aerocache-proof",
+  "output_dir": "out/suites/aerocache-proof",
+  "started_at": "2026-07-14T00:53:07.401852Z",
+  "duration_ms": 106.292,
+  "passed": false,
+  "http_artifacts": [
+    {
+      "name": "aerocache-healthz raw",
+      "path": "out/suites/aerocache-proof/aerocache-healthz.http.jsonl"
+    },
+    {
+      "name": "aerocache-healthz summary",
+      "path": "out/suites/aerocache-proof/aerocache-healthz.http.summary.json"
+    }
+  ],
+  "chat_artifacts": [
+    {
+      "name": "aerocache-chat-twice raw",
+      "path": "out/suites/aerocache-proof/aerocache-chat-twice.chat.jsonl"
+    },
+    {
+      "name": "aerocache-chat-twice summary",
+      "path": "out/suites/aerocache-proof/aerocache-chat-twice.chat.summary.json"
+    },
+    {
+      "name": "aerocache-chat-twice proof",
+      "path": "out/suites/aerocache-proof/aerocache-chat-twice.chat.proof.json"
+    }
+  ]
+}

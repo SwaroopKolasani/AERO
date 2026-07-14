@@ -1,0 +1,28 @@
+{
+  "schema_version": "aerorig.suite_result.v1",
+  "suite_name": "local",
+  "output_dir": "out/suites/local",
+  "started_at": "2026-07-14T00:52:38.583419Z",
+  "duration_ms": 6683.861,
+  "passed": true,
+  "http_artifacts": [
+    {
+      "name": "ollama-tags raw",
+      "path": "out/suites/local/ollama-tags.http.jsonl"
+    },
+    {
+      "name": "ollama-tags summary",
+      "path": "out/suites/local/ollama-tags.http.summary.json"
+    }
+  ],
+  "chat_artifacts": [
+    {
+      "name": "ollama-chat raw",
+      "path": "out/suites/local/ollama-chat.chat.jsonl"
+    },
+    {
+      "name": "ollama-chat summary",
+      "path": "out/suites/local/ollama-chat.chat.summary.json"
+    }
+  ]
+}

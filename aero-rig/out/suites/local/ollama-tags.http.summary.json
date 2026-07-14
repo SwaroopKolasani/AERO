@@ -1,0 +1,25 @@
+{
+  "schema_version": "aerorig.http_summary.v1",
+  "probe": "http_summary",
+  "source_files": [
+    "out/suites/local/ollama-tags.http.jsonl"
+  ],
+  "total_samples": 3,
+  "ok_samples": 3,
+  "failed_samples": 0,
+  "success_rate": 1,
+  "latency_ms": {
+    "min_ms": 0.891,
+    "p50_ms": 2.629,
+    "p95_ms": 68.153,
+    "max_ms": 68.153,
+    "avg_ms": 23.891
+  },
+  "status_codes": [
+    {
+      "status_code": 200,
+      "count": 3
+    }
+  ],
+  "errors": []
+}

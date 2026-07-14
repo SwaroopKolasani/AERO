@@ -1,0 +1,72 @@
+{
+  "schema_version": "aerorig.chat_proof.v1",
+  "probe": "chat_proof",
+  "source_files": [
+    "out/suites/aerocache-proof/aerocache-chat-twice.chat.jsonl"
+  ],
+  "total_samples": 2,
+  "ok_samples": 2,
+  "failed_samples": 0,
+  "answer_hash_count": 1,
+  "answer_stable": true,
+  "cache_hit_samples": 2,
+  "cache_miss_samples": 0,
+  "verified_samples": 2,
+  "verified_hit_samples": 2,
+  "miss_then_hit": false,
+  "passed": false,
+  "assertions": [
+    {
+      "name": "at_least_two_samples",
+      "passed": true,
+      "detail": "samples=2"
+    },
+    {
+      "name": "no_failed_samples",
+      "passed": true,
+      "detail": "failed=0"
+    },
+    {
+      "name": "answer_stable",
+      "passed": true,
+      "detail": "answer_hash_count=1"
+    },
+    {
+      "name": "cache_hit_present",
+      "passed": true,
+      "detail": "cache_hit_samples=2"
+    },
+    {
+      "name": "verified_hit_present",
+      "passed": true,
+      "detail": "verified_hit_samples=2"
+    },
+    {
+      "name": "miss_then_hit",
+      "passed": false,
+      "detail": "miss_samples=0 hit_samples=2"
+    }
+  ],
+  "samples": [
+    {
+      "sample": 1,
+      "ok": true,
+      "status_code": 200,
+      "duration_ms": 19.647,
+      "answer_sha256": "f4e2f2b43402948f7cec1d2a5d2baef207530bc0f67d2a2df3d5f4cb3cf3d3fc",
+      "cache": "hit",
+      "tier": "cache-l1",
+      "verified": "true"
+    },
+    {
+      "sample": 2,
+      "ok": true,
+      "status_code": 200,
+      "duration_ms": 0.185,
+      "answer_sha256": "f4e2f2b43402948f7cec1d2a5d2baef207530bc0f67d2a2df3d5f4cb3cf3d3fc",
+      "cache": "hit",
+      "tier": "cache-l1",
+      "verified": "true"
+    }
+  ]
+}

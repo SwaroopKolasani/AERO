@@ -15,6 +15,7 @@ import (
 	"aero-rig/internal/config"
 	"aero-rig/internal/probe"
 	"aero-rig/internal/report"
+	"aero-rig/internal/suite"
 )
 
 func main() {
@@ -33,6 +34,8 @@ func main() {
 		code = runSummaryHTTP(os.Args[2:])
 	case "proof-chat":
 		code = runProofChat(os.Args[2:])
+	case "run-suite":
+		code = runSuite(os.Args[2:])
 	case "probe-chat":
 		code = runProbeChat(os.Args[2:])
 	case "help", "-h", "--help":
@@ -63,6 +66,8 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  summary-chat   summarize OpenAI-compatible chat probe JSONL output")
 	fmt.Fprintln(w, "  aerorig summary-chat -in out/aerocache_chat_twice.jsonl")
 	fmt.Fprintln(w, "  proof-chat     check repeated chat probe evidence")
+	fmt.Fprintln(w, "  run-suite      run probes from a JSON suite manifest")
+	fmt.Fprintln(w, "  aerorig run-suite -manifest examples/local-suite.json")
 	fmt.Fprintln(w, "  aerorig proof-chat -in out/aerocache_chat_twice.jsonl -require-cache-hit -require-verified-hit -require-miss-hit")
 }
 
@@ -571,4 +576,90 @@ func emptyAsDash(s string) string {
 		return "-"
 	}
 	return s
+}
+
+func runSuite(args []string) int {
+	fs := flag.NewFlagSet("run-suite", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	manifestPath := fs.String("manifest", "", "suite manifest JSON path")
+	format := fs.String("format", "text", "output format: text or json")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *manifestPath == "" {
+		fmt.Fprintln(os.Stderr, "-manifest is required")
+		return 2
+	}
+
+	manifest, err := suite.LoadManifest(*manifestPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "load suite: %v\n", err)
+		return 1
+	}
+
+	result, err := suite.Run(context.Background(), manifest)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "run suite: %v\n", err)
+		return 1
+	}
+
+	switch *format {
+	case "json":
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(result); err != nil {
+			fmt.Fprintf(os.Stderr, "write suite result: %v\n", err)
+			return 1
+		}
+	case "text":
+		printSuiteResult(os.Stdout, result)
+	default:
+		fmt.Fprintf(os.Stderr, "unsupported -format: %s\n", *format)
+		return 2
+	}
+
+	if !result.Passed {
+		return 1
+	}
+
+	return 0
+}
+
+func printSuiteResult(w io.Writer, r suite.SuiteResult) {
+	fmt.Fprintln(w, "Suite result")
+	fmt.Fprintf(w, "schema: %s\n", r.SchemaVersion)
+	fmt.Fprintf(w, "suite: %s\n", r.SuiteName)
+	fmt.Fprintf(w, "output_dir: %s\n", r.OutputDir)
+	fmt.Fprintf(w, "passed: %t\n", r.Passed)
+	fmt.Fprintf(w, "duration_ms: %.3f\n", r.DurationMS)
+
+	fmt.Fprintln(w, "http_artifacts:")
+	if len(r.HTTPArtifacts) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, a := range r.HTTPArtifacts {
+			fmt.Fprintf(w, "  %s: %s\n", a.Name, a.Path)
+		}
+	}
+
+	fmt.Fprintln(w, "chat_artifacts:")
+	if len(r.ChatArtifacts) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, a := range r.ChatArtifacts {
+			fmt.Fprintf(w, "  %s: %s\n", a.Name, a.Path)
+		}
+	}
+
+	fmt.Fprintln(w, "errors:")
+	if len(r.Errors) == 0 {
+		fmt.Fprintln(w, "  none")
+	} else {
+		for _, item := range r.Errors {
+			fmt.Fprintf(w, "  %s\n", item)
+		}
+	}
 }

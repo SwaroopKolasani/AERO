@@ -1,4 +1,4 @@
-PHONY: fmt test build smoke summary chat-summary chat-proof clean
+.PHONY: fmt test build smoke summary chat-summary chat-proof suite clean
 
 fmt:
 	gofmt -w aero-rig internal
@@ -21,6 +21,9 @@ chat-summary:
 
 chat-proof:
 	go run ./aero-rig proof-chat -in out/aerocache_chat_twice.jsonl -require-cache-hit -require-verified-hit -require-miss-hit
+
+suite:
+	go run ./aero-rig run-suite -manifest examples/local-suite.json
 
 clean:
 	rm -rf bin out

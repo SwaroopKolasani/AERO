@@ -29,6 +29,8 @@ func main() {
 		code = runProbeHTTP(os.Args[2:])
 	case "summary-http":
 		code = runSummaryHTTP(os.Args[2:])
+	case "probe-chat":
+		code = runProbeChat(os.Args[2:])
 	case "help", "-h", "--help":
 		usage(os.Stdout)
 		code = 0
@@ -47,12 +49,13 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "commands:")
 	fmt.Fprintln(w, "  probe-http     measure HTTP reachability and latency")
 	fmt.Fprintln(w, "  summary-http   summarize HTTP probe JSONL output")
+	fmt.Fprintln(w, "  probe-chat     measure non-streaming OpenAI-compatible chat completion latency")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "examples:")
 	fmt.Fprintln(w, "  aerorig probe-http -name aerocache -target http://127.0.0.1:8080/healthz -count 5")
-	fmt.Fprintln(w, "  aerorig probe-http -name ollama -target http://127.0.0.1:11434/api/tags -count 5 -out out/ollama.jsonl")
 	fmt.Fprintln(w, "  aerorig summary-http -in out/smoke_http.jsonl")
-	fmt.Fprintln(w, "  aerorig summary-http -in out/smoke_http.jsonl -format json")
+	fmt.Fprintln(w, "  aerorig probe-chat -name ollama -target http://127.0.0.1:11434/v1/chat/completions -model llama3.2:3b -prompt 'Say pong.' -count 3")
+	fmt.Fprintln(w, "  aerorig probe-chat -name aerocache -target http://127.0.0.1:8080/v1/chat/completions -model tiny -prompt 'Say pong.' -count 2 -out out/chat.jsonl")
 }
 
 func runProbeHTTP(args []string) int {
@@ -174,6 +177,104 @@ func runSummaryHTTP(args []string) int {
 	}
 
 	return 0
+}
+
+func runProbeChat(args []string) int {
+	fs := flag.NewFlagSet("probe-chat", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+
+	name := fs.String("name", "target", "logical target name")
+	target := fs.String("target", "", "OpenAI-compatible /v1/chat/completions URL")
+	model := fs.String("model", "", "model name")
+	prompt := fs.String("prompt", "", "user prompt")
+	promptFile := fs.String("prompt-file", "", "path to prompt file")
+	count := fs.Int("count", 1, "number of samples")
+	timeoutRaw := fs.String("timeout", "30s", "per-sample timeout, for example 30s or 2m")
+	apiKey := fs.String("api-key", os.Getenv("AERORIG_API_KEY"), "optional bearer token; defaults to AERORIG_API_KEY")
+	outPath := fs.String("out", "", "optional JSONL output path")
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *target == "" {
+		fmt.Fprintln(os.Stderr, "-target is required")
+		return 2
+	}
+	if *model == "" {
+		fmt.Fprintln(os.Stderr, "-model is required")
+		return 2
+	}
+	if *prompt == "" && *promptFile == "" {
+		fmt.Fprintln(os.Stderr, "-prompt or -prompt-file is required")
+		return 2
+	}
+	if *count <= 0 {
+		fmt.Fprintln(os.Stderr, "-count must be greater than zero")
+		return 2
+	}
+
+	finalPrompt := *prompt
+	if *promptFile != "" {
+		b, err := os.ReadFile(*promptFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "read prompt file: %v\n", err)
+			return 1
+		}
+		finalPrompt = string(b)
+	}
+
+	timeout, err := time.ParseDuration(*timeoutRaw)
+	if err != nil || timeout <= 0 {
+		fmt.Fprintf(os.Stderr, "invalid -timeout: %s\n", *timeoutRaw)
+		return 2
+	}
+
+	var w io.Writer = os.Stdout
+	var f *os.File
+	if *outPath != "" {
+		if err := os.MkdirAll(filepath.Dir(*outPath), 0o755); err != nil {
+			fmt.Fprintf(os.Stderr, "create output dir: %v\n", err)
+			return 1
+		}
+		f, err = os.Create(*outPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "create output file: %v\n", err)
+			return 1
+		}
+		defer f.Close()
+		w = f
+	}
+
+	client := &http.Client{Timeout: timeout}
+	runID := newRunID()
+	enc := json.NewEncoder(w)
+
+	exitCode := 0
+	for i := 1; i <= *count; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		res := probe.Chat(ctx, client, probe.ChatRequest{
+			RunID:      runID,
+			Sample:     i,
+			TargetName: *name,
+			TargetURL:  *target,
+			Model:      *model,
+			Prompt:     finalPrompt,
+			APIKey:     *apiKey,
+			Timeout:    timeout,
+		})
+		cancel()
+
+		if err := enc.Encode(res); err != nil {
+			fmt.Fprintf(os.Stderr, "write result: %v\n", err)
+			return 1
+		}
+		if !res.OK {
+			exitCode = 1
+		}
+	}
+
+	return exitCode
 }
 
 func printHTTPSummary(w io.Writer, s report.HTTPSummary) {

@@ -1,4 +1,4 @@
-.PHONY: fmt test build smoke summary chat-summary chat-proof stream-summary suite matrix compare build-suite clean
+.PHONY: fmt test build smoke summary chat-summary chat-proof stream-summary suite matrix compare build-suite bench-local clean
 
 fmt:
 	gofmt -w aero-rig internal
@@ -26,7 +26,7 @@ stream-summary:
 	go run ./aero-rig summary-chat-stream -in out/aerocache_chat_stream_twice.jsonl
 
 suite:
-	go run ./aero-rig run-suite -manifest examples/local-suite.json
+	go run ./aero-rig run-suite -manifest examples/local_suite.json
 
 matrix:
 	go run ./aero-rig build-matrix -suite-result out/suites/local/suite_result.json -out out/suites/local/matrix.json
@@ -36,6 +36,9 @@ compare:
 
 build-suite:
 	go run ./aero-rig build-suite -workload examples/workload/local-ollama.json -out out/suites/local-ollama-workload/generated-suite.json
+
+bench-local:
+	bash scripts/bench_cache_vs_direct.sh
 
 clean:
 	rm -rf bin out

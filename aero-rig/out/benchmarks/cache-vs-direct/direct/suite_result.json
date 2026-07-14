@@ -1,0 +1,44 @@
+{
+  "schema_version": "aerorig.suite_result.v1",
+  "suite_name": "cache-vs-direct-direct",
+  "output_dir": "out/benchmarks/cache-vs-direct/direct",
+  "started_at": "2026-07-14T04:38:59.296772Z",
+  "duration_ms": 10945.908,
+  "passed": true,
+  "chat_artifacts": [
+    {
+      "name": "exact-pong-chat raw",
+      "path": "out/benchmarks/cache-vs-direct/direct/exact-pong-chat.chat.jsonl"
+    },
+    {
+      "name": "exact-pong-chat summary",
+      "path": "out/benchmarks/cache-vs-direct/direct/exact-pong-chat.chat.summary.json"
+    },
+    {
+      "name": "short-summary-chat raw",
+      "path": "out/benchmarks/cache-vs-direct/direct/short-summary-chat.chat.jsonl"
+    },
+    {
+      "name": "short-summary-chat summary",
+      "path": "out/benchmarks/cache-vs-direct/direct/short-summary-chat.chat.summary.json"
+    }
+  ],
+  "stream_artifacts": [
+    {
+      "name": "exact-pong-stream raw",
+      "path": "out/benchmarks/cache-vs-direct/direct/exact-pong-stream.chat_stream.jsonl"
+    },
+    {
+      "name": "exact-pong-stream summary",
+      "path": "out/benchmarks/cache-vs-direct/direct/exact-pong-stream.chat_stream.summary.json"
+    },
+    {
+      "name": "short-summary-stream raw",
+      "path": "out/benchmarks/cache-vs-direct/direct/short-summary-stream.chat_stream.jsonl"
+    },
+    {
+      "name": "short-summary-stream summary",
+      "path": "out/benchmarks/cache-vs-direct/direct/short-summary-stream.chat_stream.summary.json"
+    }
+  ]
+}

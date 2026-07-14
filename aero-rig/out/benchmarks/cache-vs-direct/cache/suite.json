@@ -1,0 +1,45 @@
+{
+  "name": "cache-vs-direct-cache",
+  "output_dir": "out/benchmarks/cache-vs-direct/cache",
+  "chat": [
+    {
+      "name": "exact-pong-chat",
+      "target": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s",
+      "proof": {
+        "require_cache_hit": true,
+        "require_verified_hit": true,
+        "require_miss_hit": true
+      }
+    },
+    {
+      "name": "short-summary-chat",
+      "target": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Summarize this in one sentence: Aero measures cache hits, latency, TTFT, and cost evidence for repeated inference requests.",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ],
+  "chat_stream": [
+    {
+      "name": "exact-pong-stream",
+      "target": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Return exactly: pong",
+      "count": 2,
+      "timeout": "60s"
+    },
+    {
+      "name": "short-summary-stream",
+      "target": "http://127.0.0.1:8080/v1/chat/completions",
+      "model": "llama3.2:3b",
+      "prompt": "Summarize this in one sentence: Aero measures cache hits, latency, TTFT, and cost evidence for repeated inference requests.",
+      "count": 2,
+      "timeout": "60s"
+    }
+  ]
+}

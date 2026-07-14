@@ -1,0 +1,183 @@
+{
+  "schema_version": "aerorig.matrix.v1",
+  "suite_name": "cache-vs-direct-cache",
+  "source_suite_result": "out/benchmarks/cache-vs-direct/cache/suite_result.json",
+  "output_dir": "out/benchmarks/cache-vs-direct/cache",
+  "generated_at": "2026-07-14T04:39:14.253087Z",
+  "rows": [
+    {
+      "name": "exact-pong-chat",
+      "probe": "chat",
+      "summary_path": "out/benchmarks/cache-vs-direct/cache/exact-pong-chat.chat.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 0.693,
+      "latency_p50_ms": 0.693,
+      "latency_p95_ms": 346.239,
+      "latency_max_ms": 346.239,
+      "latency_avg_ms": 173.466,
+      "output_tokens_avg": 3,
+      "total_tokens_avg": 32,
+      "answer_stable": true,
+      "verified_samples": 1,
+      "verified_hit_samples": 1,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ],
+      "cache_results": [
+        {
+          "value": "hit",
+          "count": 1
+        },
+        {
+          "value": "miss",
+          "count": 1
+        }
+      ],
+      "tiers": [
+        {
+          "value": "cache-l1",
+          "count": 1
+        },
+        {
+          "value": "dev",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "short-summary-chat",
+      "probe": "chat",
+      "summary_path": "out/benchmarks/cache-vs-direct/cache/short-summary-chat.chat.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 4.264,
+      "latency_p50_ms": 4.264,
+      "latency_p95_ms": 1126.79,
+      "latency_max_ms": 1126.79,
+      "latency_avg_ms": 565.527,
+      "output_tokens_avg": 37,
+      "total_tokens_avg": 88,
+      "answer_stable": true,
+      "verified_samples": 1,
+      "verified_hit_samples": 1,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ],
+      "cache_results": [
+        {
+          "value": "hit",
+          "count": 1
+        },
+        {
+          "value": "miss",
+          "count": 1
+        }
+      ],
+      "tiers": [
+        {
+          "value": "cache-l1",
+          "count": 1
+        },
+        {
+          "value": "dev",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "exact-pong-stream",
+      "probe": "chat_stream",
+      "summary_path": "out/benchmarks/cache-vs-direct/cache/exact-pong-stream.chat_stream.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 2.213,
+      "latency_p50_ms": 2.213,
+      "latency_p95_ms": 226.013,
+      "latency_max_ms": 226.013,
+      "latency_avg_ms": 114.113,
+      "ttft_p50_ms": 2.198,
+      "ttft_p95_ms": 175.437,
+      "output_tokens_avg": 3,
+      "total_tokens_avg": 32,
+      "answer_stable": true,
+      "verified_samples": 1,
+      "verified_hit_samples": 1,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ],
+      "cache_results": [
+        {
+          "value": "hit",
+          "count": 1
+        },
+        {
+          "value": "miss",
+          "count": 1
+        }
+      ],
+      "tiers": [
+        {
+          "value": "cache-l1",
+          "count": 1
+        },
+        {
+          "value": "dev",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "short-summary-stream",
+      "probe": "chat_stream",
+      "summary_path": "out/benchmarks/cache-vs-direct/cache/short-summary-stream.chat_stream.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 1089.621,
+      "latency_p50_ms": 1089.621,
+      "latency_p95_ms": 1130.887,
+      "latency_max_ms": 1130.887,
+      "latency_avg_ms": 1110.254,
+      "ttft_p50_ms": 119.653,
+      "ttft_p95_ms": 167.151,
+      "output_tokens_avg": 37,
+      "total_tokens_avg": 88,
+      "answer_stable": true,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ],
+      "cache_results": [
+        {
+          "value": "miss",
+          "count": 2
+        }
+      ],
+      "tiers": [
+        {
+          "value": "dev",
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

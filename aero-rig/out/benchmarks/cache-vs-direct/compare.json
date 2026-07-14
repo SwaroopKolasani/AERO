@@ -1,0 +1,334 @@
+{
+  "schema_version": "aerorig.matrix_compare.v1",
+  "baseline_path": "out/benchmarks/cache-vs-direct/direct/matrix.json",
+  "candidate_path": "out/benchmarks/cache-vs-direct/cache/matrix.json",
+  "generated_at": "2026-07-14T04:39:14.266535Z",
+  "summary": {
+    "matched_rows": 4,
+    "added_rows": 0,
+    "removed_rows": 0,
+    "failed_rows": 0
+  },
+  "rows": [
+    {
+      "name": "exact-pong-chat",
+      "probe": "chat",
+      "status": "matched",
+      "baseline": {
+        "name": "exact-pong-chat",
+        "probe": "chat",
+        "summary_path": "out/benchmarks/cache-vs-direct/direct/exact-pong-chat.chat.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 189.968,
+        "latency_p50_ms": 189.968,
+        "latency_p95_ms": 5963.124,
+        "latency_max_ms": 5963.124,
+        "latency_avg_ms": 3076.546,
+        "output_tokens_avg": 3,
+        "total_tokens_avg": 32,
+        "answer_stable": true,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ]
+      },
+      "candidate": {
+        "name": "exact-pong-chat",
+        "probe": "chat",
+        "summary_path": "out/benchmarks/cache-vs-direct/cache/exact-pong-chat.chat.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 0.693,
+        "latency_p50_ms": 0.693,
+        "latency_p95_ms": 346.239,
+        "latency_max_ms": 346.239,
+        "latency_avg_ms": 173.466,
+        "output_tokens_avg": 3,
+        "total_tokens_avg": 32,
+        "answer_stable": true,
+        "verified_samples": 1,
+        "verified_hit_samples": 1,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ],
+        "cache_results": [
+          {
+            "value": "hit",
+            "count": 1
+          },
+          {
+            "value": "miss",
+            "count": 1
+          }
+        ],
+        "tiers": [
+          {
+            "value": "cache-l1",
+            "count": 1
+          },
+          {
+            "value": "dev",
+            "count": 1
+          }
+        ]
+      },
+      "latency_p50_delta_ms": -189.275,
+      "latency_p95_delta_ms": -5616.885,
+      "latency_avg_delta_ms": -2903.08,
+      "verified_samples_delta": 1,
+      "verified_hit_samples_delta": 1,
+      "baseline_answer_stable": true,
+      "candidate_answer_stable": true
+    },
+    {
+      "name": "short-summary-chat",
+      "probe": "chat",
+      "status": "matched",
+      "baseline": {
+        "name": "short-summary-chat",
+        "probe": "chat",
+        "summary_path": "out/benchmarks/cache-vs-direct/direct/short-summary-chat.chat.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 1074.816,
+        "latency_p50_ms": 1074.816,
+        "latency_p95_ms": 1157.787,
+        "latency_max_ms": 1157.787,
+        "latency_avg_ms": 1116.302,
+        "output_tokens_avg": 37,
+        "total_tokens_avg": 88,
+        "answer_stable": true,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ]
+      },
+      "candidate": {
+        "name": "short-summary-chat",
+        "probe": "chat",
+        "summary_path": "out/benchmarks/cache-vs-direct/cache/short-summary-chat.chat.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 4.264,
+        "latency_p50_ms": 4.264,
+        "latency_p95_ms": 1126.79,
+        "latency_max_ms": 1126.79,
+        "latency_avg_ms": 565.527,
+        "output_tokens_avg": 37,
+        "total_tokens_avg": 88,
+        "answer_stable": true,
+        "verified_samples": 1,
+        "verified_hit_samples": 1,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ],
+        "cache_results": [
+          {
+            "value": "hit",
+            "count": 1
+          },
+          {
+            "value": "miss",
+            "count": 1
+          }
+        ],
+        "tiers": [
+          {
+            "value": "cache-l1",
+            "count": 1
+          },
+          {
+            "value": "dev",
+            "count": 1
+          }
+        ]
+      },
+      "latency_p50_delta_ms": -1070.552,
+      "latency_p95_delta_ms": -30.997,
+      "latency_avg_delta_ms": -550.775,
+      "verified_samples_delta": 1,
+      "verified_hit_samples_delta": 1,
+      "baseline_answer_stable": true,
+      "candidate_answer_stable": true
+    },
+    {
+      "name": "exact-pong-stream",
+      "probe": "chat_stream",
+      "status": "matched",
+      "baseline": {
+        "name": "exact-pong-stream",
+        "probe": "chat_stream",
+        "summary_path": "out/benchmarks/cache-vs-direct/direct/exact-pong-stream.chat_stream.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 151.941,
+        "latency_p50_ms": 151.941,
+        "latency_p95_ms": 215.741,
+        "latency_max_ms": 215.741,
+        "latency_avg_ms": 183.841,
+        "ttft_p50_ms": 101.689,
+        "ttft_p95_ms": 165.703,
+        "output_tokens_avg": 3,
+        "total_tokens_avg": 32,
+        "answer_stable": true,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ]
+      },
+      "candidate": {
+        "name": "exact-pong-stream",
+        "probe": "chat_stream",
+        "summary_path": "out/benchmarks/cache-vs-direct/cache/exact-pong-stream.chat_stream.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 2.213,
+        "latency_p50_ms": 2.213,
+        "latency_p95_ms": 226.013,
+        "latency_max_ms": 226.013,
+        "latency_avg_ms": 114.113,
+        "ttft_p50_ms": 2.198,
+        "ttft_p95_ms": 175.437,
+        "output_tokens_avg": 3,
+        "total_tokens_avg": 32,
+        "answer_stable": true,
+        "verified_samples": 1,
+        "verified_hit_samples": 1,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ],
+        "cache_results": [
+          {
+            "value": "hit",
+            "count": 1
+          },
+          {
+            "value": "miss",
+            "count": 1
+          }
+        ],
+        "tiers": [
+          {
+            "value": "cache-l1",
+            "count": 1
+          },
+          {
+            "value": "dev",
+            "count": 1
+          }
+        ]
+      },
+      "latency_p50_delta_ms": -149.728,
+      "latency_p95_delta_ms": 10.272,
+      "latency_avg_delta_ms": -69.728,
+      "ttft_p50_delta_ms": -99.491,
+      "ttft_p95_delta_ms": 9.734,
+      "verified_samples_delta": 1,
+      "verified_hit_samples_delta": 1,
+      "baseline_answer_stable": true,
+      "candidate_answer_stable": true
+    },
+    {
+      "name": "short-summary-stream",
+      "probe": "chat_stream",
+      "status": "matched",
+      "baseline": {
+        "name": "short-summary-stream",
+        "probe": "chat_stream",
+        "summary_path": "out/benchmarks/cache-vs-direct/direct/short-summary-stream.chat_stream.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 1079.037,
+        "latency_p50_ms": 1079.037,
+        "latency_p95_ms": 1104.147,
+        "latency_max_ms": 1104.147,
+        "latency_avg_ms": 1091.592,
+        "ttft_p50_ms": 163.102,
+        "ttft_p95_ms": 163.788,
+        "output_tokens_avg": 37,
+        "total_tokens_avg": 88,
+        "answer_stable": true,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ]
+      },
+      "candidate": {
+        "name": "short-summary-stream",
+        "probe": "chat_stream",
+        "summary_path": "out/benchmarks/cache-vs-direct/cache/short-summary-stream.chat_stream.summary.json",
+        "total_samples": 2,
+        "ok_samples": 2,
+        "failed_samples": 0,
+        "success_rate": 1,
+        "latency_min_ms": 1089.621,
+        "latency_p50_ms": 1089.621,
+        "latency_p95_ms": 1130.887,
+        "latency_max_ms": 1130.887,
+        "latency_avg_ms": 1110.254,
+        "ttft_p50_ms": 119.653,
+        "ttft_p95_ms": 167.151,
+        "output_tokens_avg": 37,
+        "total_tokens_avg": 88,
+        "answer_stable": true,
+        "status_codes": [
+          {
+            "status_code": 200,
+            "count": 2
+          }
+        ],
+        "cache_results": [
+          {
+            "value": "miss",
+            "count": 2
+          }
+        ],
+        "tiers": [
+          {
+            "value": "dev",
+            "count": 2
+          }
+        ]
+      },
+      "latency_p50_delta_ms": 10.584,
+      "latency_p95_delta_ms": 26.74,
+      "latency_avg_delta_ms": 18.662,
+      "ttft_p50_delta_ms": -43.449,
+      "ttft_p95_delta_ms": 3.363,
+      "baseline_answer_stable": true,
+      "candidate_answer_stable": true
+    }
+  ]
+}

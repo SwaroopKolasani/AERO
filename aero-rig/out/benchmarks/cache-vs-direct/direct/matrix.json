@@ -1,0 +1,105 @@
+{
+  "schema_version": "aerorig.matrix.v1",
+  "suite_name": "cache-vs-direct-direct",
+  "source_suite_result": "out/benchmarks/cache-vs-direct/direct/suite_result.json",
+  "output_dir": "out/benchmarks/cache-vs-direct/direct",
+  "generated_at": "2026-07-14T04:39:10.282477Z",
+  "rows": [
+    {
+      "name": "exact-pong-chat",
+      "probe": "chat",
+      "summary_path": "out/benchmarks/cache-vs-direct/direct/exact-pong-chat.chat.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 189.968,
+      "latency_p50_ms": 189.968,
+      "latency_p95_ms": 5963.124,
+      "latency_max_ms": 5963.124,
+      "latency_avg_ms": 3076.546,
+      "output_tokens_avg": 3,
+      "total_tokens_avg": 32,
+      "answer_stable": true,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "short-summary-chat",
+      "probe": "chat",
+      "summary_path": "out/benchmarks/cache-vs-direct/direct/short-summary-chat.chat.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 1074.816,
+      "latency_p50_ms": 1074.816,
+      "latency_p95_ms": 1157.787,
+      "latency_max_ms": 1157.787,
+      "latency_avg_ms": 1116.302,
+      "output_tokens_avg": 37,
+      "total_tokens_avg": 88,
+      "answer_stable": true,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "exact-pong-stream",
+      "probe": "chat_stream",
+      "summary_path": "out/benchmarks/cache-vs-direct/direct/exact-pong-stream.chat_stream.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 151.941,
+      "latency_p50_ms": 151.941,
+      "latency_p95_ms": 215.741,
+      "latency_max_ms": 215.741,
+      "latency_avg_ms": 183.841,
+      "ttft_p50_ms": 101.689,
+      "ttft_p95_ms": 165.703,
+      "output_tokens_avg": 3,
+      "total_tokens_avg": 32,
+      "answer_stable": true,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "short-summary-stream",
+      "probe": "chat_stream",
+      "summary_path": "out/benchmarks/cache-vs-direct/direct/short-summary-stream.chat_stream.summary.json",
+      "total_samples": 2,
+      "ok_samples": 2,
+      "failed_samples": 0,
+      "success_rate": 1,
+      "latency_min_ms": 1079.037,
+      "latency_p50_ms": 1079.037,
+      "latency_p95_ms": 1104.147,
+      "latency_max_ms": 1104.147,
+      "latency_avg_ms": 1091.592,
+      "ttft_p50_ms": 163.102,
+      "ttft_p95_ms": 163.788,
+      "output_tokens_avg": 37,
+      "total_tokens_avg": 88,
+      "answer_stable": true,
+      "status_codes": [
+        {
+          "status_code": 200,
+          "count": 2
+        }
+      ]
+    }
+  ]
+}

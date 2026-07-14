@@ -1,0 +1,64 @@
+{
+  "schema_version": "aerorig.chat_summary.v1",
+  "probe": "chat_summary",
+  "source_files": [
+    "out/benchmarks/cache-vs-direct/direct/exact-pong-chat.chat.jsonl"
+  ],
+  "total_samples": 2,
+  "ok_samples": 2,
+  "failed_samples": 0,
+  "success_rate": 1,
+  "latency_ms": {
+    "min_ms": 189.968,
+    "p50_ms": 189.968,
+    "p95_ms": 5963.124,
+    "max_ms": 5963.124,
+    "avg_ms": 3076.546
+  },
+  "prompt_tokens": {
+    "min": 29,
+    "p50": 29,
+    "p95": 29,
+    "max": 29,
+    "avg": 29
+  },
+  "output_tokens": {
+    "min": 3,
+    "p50": 3,
+    "p95": 3,
+    "max": 3,
+    "avg": 3
+  },
+  "total_tokens": {
+    "min": 32,
+    "p50": 32,
+    "p95": 32,
+    "max": 32,
+    "avg": 32
+  },
+  "answer_hash_count": 1,
+  "answer_stable": true,
+  "cache_results": [],
+  "tiers": [],
+  "verified_samples": 0,
+  "verified_hit_samples": 0,
+  "status_codes": [
+    {
+      "status_code": 200,
+      "count": 2
+    }
+  ],
+  "finish_reasons": [
+    {
+      "value": "stop",
+      "count": 2
+    }
+  ],
+  "response_models": [
+    {
+      "value": "llama3.2:3b",
+      "count": 2
+    }
+  ],
+  "errors": []
+}

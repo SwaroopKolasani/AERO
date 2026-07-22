@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import {
   Area,
   AreaChart,
@@ -13,7 +13,6 @@ import {
 
 const POLL_MS = 2500;
 const TRACE_CAP = 48;
-const DEMO_COST_PER_MISS = 0.00108;
 
 const CSS = `
 .aero{--void:#0b090a;--panel:#100d0e;--panel-2:#0c0a0b;--line:#241a1c;--line-2:#312325;
@@ -171,9 +170,128 @@ const CSS = `
   .aero .rgrid,.aero .params,.aero .specs{grid-template-columns:1fr}
   .aero .ladder{flex-direction:column}.aero .mode,.aero .signin{display:none}}
 @media(prefers-reduced-motion:reduce){.aero .dot.live{animation:none}}
+
+/* Aero Studio workspace */
+.aero{height:100vh;min-height:680px;overflow:hidden;background:#0b090a}
+.aero .studio-shell{position:relative;display:grid;grid-template-columns:190px minmax(0,1fr) 308px;
+  height:100vh;min-height:680px}
+.aero .studio-sidebar,.aero .settings-panel{position:relative;z-index:5;background:#0e0c0d}
+.aero .studio-sidebar{display:flex;flex-direction:column;border-right:1px solid var(--line);padding:14px 12px}
+.aero .studio-brand{display:flex;align-items:center;gap:11px;padding:4px 6px 21px}
+.aero .studio-brand-copy{display:flex;align-items:baseline;gap:7px}
+.aero .studio-brand .wordmark{font-size:15px}.aero .studio-brand .tag{font-size:9px}
+.aero .nav-label{margin:17px 9px 7px;font:600 9px/1 var(--mono);letter-spacing:.16em;
+  text-transform:uppercase;color:#544d4f}
+.aero .studio-nav{display:grid;gap:3px;margin:0}
+.aero .studio-nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:7px;
+  color:var(--muted);font-size:13px;text-decoration:none}
+.aero .studio-nav a:hover{color:var(--text);background:#ffffff08}
+.aero .studio-nav a.active{background:#211b1d;color:var(--text);box-shadow:inset 2px 0 var(--oxblood-hi)}
+.aero .nav-icon{width:16px;text-align:center;color:var(--steel-lo);font:14px/1 var(--mono)}
+.aero .sidebar-spacer{flex:1}
+.aero .sidebar-note{margin:12px 3px;padding:13px;border:1px solid var(--line-2);border-radius:10px;
+  background:linear-gradient(145deg,rgba(106,4,15,.12),transparent 65%)}
+.aero .sidebar-note strong{display:block;font-size:11px;margin-bottom:6px}
+.aero .sidebar-note span{display:block;font-size:10px;line-height:1.5;color:var(--faint)}
+.aero .sidebar-status{display:flex;align-items:center;gap:9px;margin:3px;padding:10px 9px;
+  border-top:1px solid var(--line);font:600 10px/1 var(--mono);letter-spacing:.06em;color:var(--muted)}
+.aero .panel-resizer{position:absolute;top:0;bottom:0;width:9px;z-index:30;cursor:col-resize;touch-action:none}
+.aero .panel-resizer::after{content:"";position:absolute;top:0;bottom:0;left:4px;width:1px;
+  background:transparent;transition:.15s}
+.aero .panel-resizer:hover::after,.aero .panel-resizer.dragging::after{background:var(--oxblood-hi)}
+.aero .panel-resizer.left{right:-5px}.aero .panel-resizer.right{left:-5px}
+
+.aero .studio-main{position:relative;z-index:2;min-width:0;display:flex;flex-direction:column;background:#0b090a}
+.aero .studio-topbar{height:58px;flex:0 0 58px;display:flex;align-items:center;gap:12px;
+  padding:0 20px;border-bottom:1px solid var(--line);background:rgba(14,12,13,.94)}
+.aero .topbar-title{font-size:14px;font-weight:600}.aero .topbar-sep{color:var(--faint)}
+.aero .topbar-context{font:11px/1 var(--mono);color:var(--faint)}
+.aero .topbar-actions{margin-left:auto;display:flex;align-items:center;gap:8px}
+.aero .connection-pill{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line-2);
+  border-radius:7px;font:600 9px/1 var(--mono);letter-spacing:.1em;color:var(--muted)}
+.aero .icon-btn{width:30px;height:30px;border:1px solid transparent;border-radius:7px;background:transparent;
+  color:var(--muted);cursor:pointer}.aero .icon-btn:hover{background:#ffffff08;color:var(--text);border-color:var(--line)}
+.aero .panel-toggle{display:flex;align-items:center;gap:7px;height:30px;padding:0 9px;border:1px solid var(--line-2);
+  border-radius:7px;background:transparent;color:var(--muted);font:600 10px/1 var(--mono);cursor:pointer}
+.aero .panel-toggle:hover{color:var(--text);background:#ffffff08}
+.aero .studio-scroll{min-height:0;overflow:auto;scroll-behavior:smooth}
+.aero .workspace{width:100%;max-width:none;margin:0 auto;padding:34px 34px 60px}
+.aero .workspace-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:22px}
+.aero .workspace-intro h1{font-size:28px;line-height:1.1;max-width:none;margin:9px 0 0;font-weight:500}
+.aero .workspace-intro .lede{font-size:12px;line-height:1.55;max-width:47ch;text-align:right}
+.aero .workspace .card{border-radius:10px;padding:17px;background:#100d0e}
+.aero .prompt-studio{min-height:292px;display:flex;flex-direction:column}
+.aero .prompt-editor{flex:1;display:flex;flex-direction:column;border:1px solid var(--line-2);
+  background:#0c0a0b;border-radius:9px;overflow:hidden}
+.aero .prompt-editor textarea{flex:1;min-height:150px;border:0;border-radius:0;background:transparent;
+  font:14px/1.65 var(--sans);padding:17px;resize:vertical;box-shadow:none}
+.aero .editor-actions{display:flex;align-items:center;gap:8px;padding:10px;border-top:1px solid var(--line)}
+.aero .editor-chip{padding:6px 9px;border-radius:6px;background:#ffffff08;color:var(--muted);
+  font:10px/1 var(--mono);border:1px solid var(--line)}
+.aero .editor-actions .fire{margin:0 0 0 auto}.aero .editor-actions .btn{flex:none;padding:9px 13px;font-size:11px}
+.aero .proof-card{margin-top:14px}.aero .proof-card .receipt{min-height:0}
+.aero .insight-grid{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+.aero .insight-grid .ladder{display:grid;grid-template-columns:repeat(7,1fr)}
+.aero .insight-grid .rung{min-width:0;padding:12px 5px}
+.aero .boundary-wrap{margin-top:28px}.aero .divider{margin:0 0 16px}
+.aero .specs{grid-template-columns:repeat(2,1fr);gap:10px}.aero .spec{border-radius:9px;padding:14px}
+.aero .foot{margin-top:26px;padding-top:17px;font-size:10px}
+
+.aero .settings-panel{border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:auto}
+.aero .settings-head{height:58px;flex:0 0 58px;display:flex;align-items:center;padding:0 16px;
+  border-bottom:1px solid var(--line);font-size:12px;font-weight:600}
+.aero .settings-head span{margin-left:auto;color:var(--faint);font:10px/1 var(--mono)}
+.aero .settings-body{padding:14px}.aero .setting-section{padding:0 0 17px;margin-bottom:17px;border-bottom:1px solid var(--line)}
+.aero .setting-title{font:600 9px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:11px}
+.aero .model-card{padding:12px;border:1px solid var(--line-2);border-radius:9px;background:#151213}
+.aero .model-card input{border:0;background:transparent;padding:0;font:500 12px/1.4 var(--sans);box-shadow:none}
+.aero .model-card p{margin:7px 0 0;color:var(--faint);font-size:10px;line-height:1.45}
+.aero .setting-field{display:block;margin-top:13px}.aero .setting-field>span,.aero .setting-row>span{
+  display:block;margin-bottom:7px;font-size:11px;color:var(--muted)}
+.aero .setting-field input[type=number]{padding:8px 9px;font-size:11px;border-radius:7px}
+.aero .range-row{display:grid;grid-template-columns:minmax(0,1fr) 50px;gap:8px;align-items:center}
+.aero input[type=range]{width:100%;accent-color:var(--oxblood-hi)}
+.aero .setting-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0}
+.aero .setting-row>span{margin:0}.aero .switch{position:relative;width:31px;height:17px;flex:0 0 auto}
+.aero .switch input{position:absolute;opacity:0}.aero .switch i{position:absolute;inset:0;border-radius:20px;
+  background:#2b2728;border:1px solid #3b3537;transition:.2s}.aero .switch i::after{content:"";position:absolute;
+  width:11px;height:11px;left:2px;top:2px;border-radius:50%;background:#898386;transition:.2s}
+.aero .switch input:checked+i{background:var(--oxblood);border-color:var(--oxblood-hi)}
+.aero .switch input:checked+i::after{transform:translateX(14px);background:#fff}
+.aero .settings-stat{display:flex;justify-content:space-between;padding:6px 0;font:10px/1.3 var(--mono)}
+.aero .settings-stat span{color:var(--faint)}.aero .settings-stat strong{font-weight:500}
+.aero .settings-help{margin-top:auto;padding:14px 16px;border-top:1px solid var(--line);color:var(--faint);
+  font-size:10px;line-height:1.5}
+
+@media(max-width:1180px){
+  .aero .studio-shell{grid-template-columns:190px minmax(0,1fr) 280px}
+  .aero .workspace{padding-left:24px;padding-right:24px}.aero .workspace-intro .lede{display:none}
+}
+@media(max-width:960px){
+  .aero{height:auto;min-height:100vh;overflow:auto}.aero .studio-shell{display:block;height:auto;min-height:100vh}
+  .aero .studio-sidebar{position:sticky;top:0;height:52px;z-index:40;display:flex;flex-direction:row;align-items:center;
+    padding:8px 12px;border-right:0;border-bottom:1px solid var(--line)}
+  .aero .studio-brand{padding:0}.aero .studio-nav{display:flex;margin-left:auto}.aero .studio-nav a{padding:8px}
+  .aero .studio-nav a span:last-child,.aero .nav-label,.aero .sidebar-note,.aero .sidebar-status,.aero .sidebar-spacer{display:none}
+  .aero .studio-main{display:block}.aero .studio-topbar{position:sticky;top:52px;z-index:30}
+  .aero .studio-scroll{overflow:visible}.aero .settings-panel{border-left:0;border-top:1px solid var(--line)}
+  .aero .panel-resizer{display:none}
+  .aero .settings-head{height:52px}.aero .settings-body{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .aero .setting-section{border:1px solid var(--line);border-radius:9px;padding:13px;margin:0}
+  .aero .settings-help{display:none}
+}
+@media(max-width:650px){
+  .aero .studio-brand-copy .tag,.aero .topbar-context,.aero .icon-btn{display:none}
+  .aero .studio-topbar{padding:0 12px}.aero .workspace{padding:24px 12px 42px}
+  .aero .workspace-intro h1{font-size:23px}.aero .rgrid,.aero .specs{grid-template-columns:1fr}
+  .aero .insight-grid .ladder{display:flex;overflow-x:auto}.aero .insight-grid .rung{min-width:88px}
+  .aero .settings-body{grid-template-columns:1fr}.aero .editor-actions{flex-wrap:wrap}
+  .aero .editor-actions .fire{width:100%;margin:2px 0 0}.aero .editor-actions .btn{flex:1}
+}
 `;
 
-type Mode = "connecting" | "live" | "demo";
+type Mode = "connecting" | "live" | "error";
 type CacheState = "hit" | "miss" | "coalesced" | "bypass" | "error" | "unknown";
 
 type PromptRequest = {
@@ -234,24 +352,6 @@ function stableHash(s: string): string {
     h = Math.imul(h, 0x01000193);
   }
   return (h >>> 0).toString(16).padStart(8, "0");
-}
-
-function canonical(req: PromptRequest): string {
-  return JSON.stringify({
-    m: req.model,
-    p: req.prompt,
-    t: req.temperature,
-    x: req.max_tokens
-  });
-}
-
-function demoAnswer(prompt: string): string {
-  const p = prompt.trim();
-  const m = p.match(/say exactly:\s*(.+)/i);
-  if (m) {
-    return m[1].trim();
-  }
-  return `deterministic completion for "${p.slice(0, 40)}${p.length > 40 ? "…" : ""}"`;
 }
 
 function fmtUSD(n: number): string {
@@ -418,22 +518,10 @@ export default function App() {
   const [statusLine, setStatusLine] = useState("idle");
   const [mode, setMode] = useState<Mode>("connecting");
   const [toast, setToast] = useState("");
-
-  const demoCache = useRef<Map<string, string>>(new Map());
-  const demoStats = useRef<StatsShape>({
-    requests: 0,
-    hits: 0,
-    misses: 0,
-    coalesced: 0,
-    bypass: 0,
-    errors: 0,
-    upstream_calls: 0,
-    verify_mismatch: 0,
-    writeback_queue_depth: 0,
-    writeback_dropped: 0,
-    hit_ratio: 0,
-    usd_saved_total: 0
-  });
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(190);
+  const [settingsWidth, setSettingsWidth] = useState(308);
 
   const request = useMemo<PromptRequest>(
     () => ({
@@ -460,10 +548,8 @@ export default function App() {
       })
       .catch(() => {
         if (!alive) return;
-        setMode("demo");
-        const s = advanceDemo(6);
-        setStats(s);
-        seedTrace(s);
+        setMode("error");
+        setStatusLine("backend unavailable");
       })
       .finally(() => window.clearTimeout(to));
 
@@ -530,124 +616,19 @@ export default function App() {
     });
   }
 
-  function advanceDemo(mult = 1): StatsShape {
-    const d = demoStats.current;
-
-    for (let i = 0; i < mult; i++) {
-      const h = 3 + Math.floor(Math.random() * 7);
-      const m = Math.random() < 0.55 ? 1 : 0;
-      const c = Math.random() < 0.3 ? 1 : 0;
-      const b = Math.random() < 0.12 ? 1 : 0;
-
-      d.hits += h;
-      d.misses += m;
-      d.coalesced += c;
-      d.bypass += b;
-      d.requests += h + m + c + b;
-      d.upstream_calls += m;
-      d.usd_saved_total = (d.usd_saved_total ?? 0) + h * DEMO_COST_PER_MISS;
-      d.usd_saved = d.usd_saved_total;
-      d.writeback_queue_depth = Math.max(0, Math.round(Math.random() * 4));
-    }
-
-    d.hit_ratio = d.requests ? d.hits / d.requests : 0;
-    return { ...d };
-  }
-
   async function tick() {
-    if (mode === "live") {
-      try {
-        const s = normalizeStats(await realStats());
-        setStats(s);
-        pushTrace(s);
-      } catch {
-        setMode("demo");
-      }
-      return;
+    try {
+      const s = normalizeStats(await realStats());
+      setMode("live");
+      setStats(s);
+      pushTrace(s);
+    } catch {
+      setMode("error");
     }
-
-    const s = advanceDemo(1);
-    setStats(s);
-    pushTrace(s);
   }
 
   async function doFire(req: PromptRequest): Promise<FireResult> {
-    if (mode === "live") {
-      try {
-        return await realFire(req);
-      } catch {
-        setMode("demo");
-      }
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 120));
-
-    const bypass = req.temperature > 0;
-    const key = canonical(req);
-    const ans = demoAnswer(req.prompt);
-    const sha = stableHash(ans + key);
-    const d = demoStats.current;
-
-    if (bypass) {
-      d.requests++;
-      d.bypass++;
-      d.upstream_calls++;
-
-      return {
-        status: 200,
-        receipt: {
-          key_prefix: null,
-          tier: "owned",
-          cache: "bypass",
-          verified: false,
-          total_ms: 640 + Math.random() * 900,
-          cost_usd: DEMO_COST_PER_MISS,
-          tokens_out: req.max_tokens,
-          answer_sha256: null
-        }
-      };
-    }
-
-    const warm = demoCache.current.has(key);
-    d.requests++;
-
-    if (warm) {
-      d.hits++;
-      d.usd_saved_total = (d.usd_saved_total ?? 0) + DEMO_COST_PER_MISS;
-      d.usd_saved = d.usd_saved_total;
-
-      return {
-        status: 200,
-        receipt: {
-          key_prefix: `blake3:${sha}`,
-          tier: "cache-l2",
-          cache: "hit",
-          verified: true,
-          total_ms: 2 + Math.random() * 6,
-          cost_usd: 0,
-          tokens_out: req.max_tokens,
-          answer_sha256: sha
-        }
-      };
-    }
-
-    demoCache.current.set(key, sha);
-    d.misses++;
-    d.upstream_calls++;
-
-    return {
-      status: 200,
-      receipt: {
-        key_prefix: `blake3:${sha}`,
-        tier: "owned",
-        cache: "miss",
-        verified: false,
-        total_ms: 700 + Math.random() * 1500,
-        cost_usd: DEMO_COST_PER_MISS,
-        tokens_out: req.max_tokens,
-        answer_sha256: sha
-      }
-    };
+    return await realFire(req);
   }
 
   async function fireOnce() {
@@ -659,7 +640,6 @@ export default function App() {
       setFirst(res);
       setSecond(null);
       setStatusLine(`${res.receipt.cache} · ${res.receipt.tier}`);
-      if (mode === "demo") setStats(advanceDemo(0));
     } catch (e) {
       setStatusLine(e instanceof Error ? e.message : "request failed");
     } finally {
@@ -682,7 +662,6 @@ export default function App() {
       setSecond(b);
 
       setStatusLine(`${a.receipt.cache} → ${b.receipt.cache}`);
-      if (mode === "demo") setStats(advanceDemo(0));
     } catch (e) {
       setStatusLine(e instanceof Error ? e.message : "twice-fire failed");
     } finally {
@@ -696,94 +675,94 @@ export default function App() {
     <div className="aero">
       <style>{CSS}</style>
       <div className="bg" />
+      <div
+        className="studio-shell"
+        style={{
+          gridTemplateColumns: `${sidebarOpen ? sidebarWidth : 0}px minmax(0,1fr) ${settingsOpen ? settingsWidth : 0}px`
+        }}
+      >
+        {sidebarOpen && <StudioSidebar width={sidebarWidth} setWidth={setSidebarWidth} />}
 
-      <div className="bar">
-        <div className="brand">
-          <BrandMark />
-          <span className="wordmark">AERO</span>
-          <span className="tag">BENCH</span>
-        </div>
+        <main className="studio-main">
+          <header className="studio-topbar">
+            <button
+              className="icon-btn"
+              title={sidebarOpen ? "Hide navigation" : "Show navigation"}
+              onClick={() => setSidebarOpen((open) => !open)}
+            >
+              {sidebarOpen ? "‹" : "☰"}
+            </button>
+            <span className="topbar-title">Playground</span>
+            <span className="topbar-sep">/</span>
+            <span className="topbar-context">exact cache proof</span>
+            <div className="topbar-actions">
+              <button className="panel-toggle" onClick={() => setSettingsOpen((open) => !open)}>
+                {settingsOpen ? "Hide settings" : "Run settings"}
+              </button>
+            </div>
+          </header>
 
-        <nav>
-          <a href="#console">Console</a>
-          <a href="#telemetry">Telemetry</a>
-          <a href="#boundary">Boundary</a>
-        </nav>
+          <div className="studio-scroll">
+            <div className="workspace">
+              <section className="workspace-intro" id="console">
+                <div>
+                  <div className="eyebrow">Aero playground</div>
+                  <h1>Prove the cache in <em>two fires.</em></h1>
+                </div>
+                <p className="lede">
+                  Same production ingress. Compare the serving tier, response identity,
+                  latency, and marginal cost without leaving the workspace.
+                </p>
+              </section>
 
-        <div className="spacer" />
+              <PromptConsole
+                prompt={prompt}
+                loading={loading}
+                statusLine={statusLine}
+                setPrompt={setPrompt}
+                fireOnce={fireOnce}
+                fireTwice={fireTwice}
+              />
 
-        <div
-          className="link"
-          title={mode === "live" ? "Connected to the proxy" : "Backend unreachable — simulated telemetry"}
-        >
-          <span className={`dot ${mode === "live" ? "live" : "demo"}`} />
-          {mode === "live" ? "LIVE" : mode === "demo" ? "DEMO" : "…"}
-        </div>
+              <ProofPanel first={first} second={second} />
 
-        <span className="mode">{mode === "live" ? "proxy connected" : "public demo · $0"}</span>
+              <div className="insight-grid" id="telemetry">
+                <LadderView active={activeTier} />
+                <Telemetry stats={stats} trace={trace} />
+              </div>
 
-        <button
-          className="signin"
-          onClick={() =>
-            setToast(
-              "Live arbitrary-prompt mode belongs behind the future auth/cost gate. This M2 surface stays read-mostly."
-            )
-          }
-        >
-          Sign in for live mode
-        </button>
-      </div>
+              <div className="boundary-wrap" id="boundary">
+                <div className="divider">
+                  <span className="ln" />
+                  <span className="t">What this proof guarantees</span>
+                  <span className="ln" />
+                </div>
+                <BoundaryPanel />
+              </div>
 
-      <div className="wrap">
-        <header className="hero" id="console">
-          <div className="eyebrow">Proof surface</div>
-          <h1>
-            Prove the cache in <em>two fires.</em>
-          </h1>
-          <p className="lede">
-            Fire a prompt, read which rung served it, the latency, and the cost. Fire the same
-            prompt again and watch it return byte-identical for nothing. Same ingress as production.
-          </p>
-        </header>
+              <footer className="foot">
+                <span>Served by the Go proxy · OCI Always Free ARM · $0 to run</span>
+                <span>Tier-A exact cache · store-and-verify · v0.1</span>
+              </footer>
+            </div>
+          </div>
+        </main>
 
-        <div className="grid g-hero">
-          <PromptConsole
+        {settingsOpen && (
+          <RunSettings
             model={model}
-            prompt={prompt}
             maxTokens={maxTokens}
             temperature={temperature}
             stream={stream}
-            loading={loading}
-            statusLine={statusLine}
+            stats={stats}
+            width={settingsWidth}
+            setWidth={setSettingsWidth}
             setModel={setModel}
-            setPrompt={setPrompt}
             setMaxTokens={setMaxTokens}
             setTemperature={setTemperature}
             setStream={setStream}
-            fireOnce={fireOnce}
-            fireTwice={fireTwice}
           />
-
-          <ProofPanel first={first} second={second} />
-        </div>
-
-        <div className="grid g-lower" id="telemetry" style={{ marginTop: 18 }}>
-          <LadderView active={activeTier} />
-          <Telemetry stats={stats} trace={trace} mode={mode} />
-        </div>
-
-        <div className="divider" id="boundary">
-          <span className="ln" />
-          <span className="t">Static zone · what this page proves</span>
-          <span className="ln" />
-        </div>
-
-        <BoundaryPanel />
-
-        <footer className="foot">
-          <span>Served by the Go proxy · OCI Always Free ARM · $0 to run</span>
-          <span>Tier-A exact cache · store-and-verify · v0.1</span>
-        </footer>
+        )}
       </div>
 
       {toast && (
@@ -792,6 +771,159 @@ export default function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function StudioSidebar({ width, setWidth }: { width: number; setWidth: (width: number) => void }) {
+  return (
+    <aside className="studio-sidebar">
+      <div className="studio-brand">
+        <BrandMark />
+        <div className="studio-brand-copy">
+          <span className="wordmark">AERO</span>
+        </div>
+      </div>
+
+      <div className="nav-label">Explore</div>
+      <nav className="studio-nav">
+        <a className="active" href="#console"><span className="nav-icon">⌁</span><span>Playground</span></a>
+      </nav>
+      <div className="sidebar-spacer" />
+      <PanelResizer side="left" size={width} min={150} max={340} setSize={setWidth} />
+    </aside>
+  );
+}
+
+type PanelResizerProps = {
+  side: "left" | "right";
+  size: number;
+  min: number;
+  max: number;
+  setSize: (size: number) => void;
+};
+
+function PanelResizer({ side, size, min, max, setSize }: PanelResizerProps) {
+  const [dragging, setDragging] = useState(false);
+
+  function startResize(event: ReactPointerEvent<HTMLDivElement>) {
+    event.preventDefault();
+    const startX = event.clientX;
+    const startSize = size;
+    setDragging(true);
+
+    const move = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      const next = side === "left" ? startSize + delta : startSize - delta;
+      setSize(Math.min(max, Math.max(min, next)));
+    };
+
+    const stop = () => {
+      setDragging(false);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", stop);
+    };
+
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", stop);
+  }
+
+  return (
+    <div
+      className={`panel-resizer ${side}${dragging ? " dragging" : ""}`}
+      role="separator"
+      aria-label={`Resize ${side} panel`}
+      aria-orientation="vertical"
+      onPointerDown={startResize}
+    />
+  );
+}
+
+type RunSettingsProps = {
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  stream: boolean;
+  stats: StatsShape | null;
+  width: number;
+  setWidth: (width: number) => void;
+  setModel: (v: string) => void;
+  setMaxTokens: (v: number) => void;
+  setTemperature: (v: number) => void;
+  setStream: (v: boolean) => void;
+};
+
+function RunSettings(p: RunSettingsProps) {
+  return (
+    <aside className="settings-panel">
+      <PanelResizer side="right" size={p.width} min={260} max={480} setSize={p.setWidth} />
+      <div className="settings-head">Run settings</div>
+      <div className="settings-body">
+        <section className="setting-section">
+          <div className="setting-title">Model</div>
+          <div className="model-card">
+            <input aria-label="Model" value={p.model} onChange={(e) => p.setModel(e.target.value)} />
+            <p>Served through the same proxy route used by production clients.</p>
+          </div>
+
+          <label className="setting-field">
+            <span>Temperature</span>
+            <div className="range-row">
+              <input
+                aria-label="Temperature slider"
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={p.temperature}
+                onChange={(e) => p.setTemperature(Number(e.target.value))}
+              />
+              <input
+                aria-label="Temperature"
+                type="number"
+                min="0"
+                max="1"
+                step="0.1"
+                value={p.temperature}
+                onChange={(e) => p.setTemperature(Number(e.target.value))}
+              />
+            </div>
+          </label>
+
+          <label className="setting-field">
+            <span>Maximum output tokens</span>
+            <input type="number" min="1" value={p.maxTokens} onChange={(e) => p.setMaxTokens(Number(e.target.value))} />
+          </label>
+        </section>
+
+        <section className="setting-section">
+          <div className="setting-title">Request behavior</div>
+          <div className="setting-row">
+            <span>Stream response</span>
+            <label className="switch">
+              <input type="checkbox" checked={p.stream} onChange={(e) => p.setStream(e.target.checked)} />
+              <i />
+            </label>
+          </div>
+          <div className="setting-row">
+            <span>Exact cache</span>
+            <label className="switch">
+              <input type="checkbox" checked={p.temperature === 0} readOnly />
+              <i />
+            </label>
+          </div>
+          <p className="hint">Non-zero temperature bypasses cache to protect correctness.</p>
+        </section>
+
+        <section className="setting-section">
+          <div className="setting-title">Snapshot</div>
+          <div className="settings-stat"><span>Requests</span><strong>{(p.stats?.requests ?? 0).toLocaleString()}</strong></div>
+          <div className="settings-stat"><span>Hit ratio</span><strong>{((p.stats?.hit_ratio ?? 0) * 100).toFixed(1)}%</strong></div>
+          <div className="settings-stat"><span>Upstream calls</span><strong>{(p.stats?.upstream_calls ?? 0).toLocaleString()}</strong></div>
+          <div className="settings-stat"><span>Verify mismatch</span><strong>{p.stats?.verify_mismatch ?? 0}</strong></div>
+        </section>
+      </div>
+      <div className="settings-help">Settings are applied directly to the next request. No backend contract or route is changed by this interface.</div>
+    </aside>
   );
 }
 
@@ -852,97 +984,53 @@ function AeroMark({ size = 26 }: { size?: number }) {
 }
 
 type PromptConsoleProps = {
-  model: string;
   prompt: string;
-  maxTokens: number;
-  temperature: number;
-  stream: boolean;
   loading: boolean;
   statusLine: string;
-  setModel: (v: string) => void;
   setPrompt: (v: string) => void;
-  setMaxTokens: (v: number) => void;
-  setTemperature: (v: number) => void;
-  setStream: (v: boolean) => void;
   fireOnce: () => void;
   fireTwice: () => void;
 };
 
 function PromptConsole(p: PromptConsoleProps) {
   return (
-    <section className="card">
+    <section className="card prompt-studio">
       <div className="chead">
         <div>
           <div className="eyebrow">Prompt console</div>
-          <h2>Real request path</h2>
+          <h2>OpenAI-compatible request</h2>
         </div>
         <span className="status">{p.statusLine}</span>
       </div>
 
-      <label className="f">
-        <span>Prompt</span>
+      <div className="prompt-editor">
         <textarea
+          aria-label="Prompt"
           value={p.prompt}
           spellCheck={false}
           onChange={(e) => p.setPrompt(e.target.value)}
+          placeholder="Enter a deterministic prompt to test the cache…"
         />
-      </label>
-
-      <div className="params">
-        <label className="f">
-          <span>Model</span>
-          <input type="text" value={p.model} onChange={(e) => p.setModel(e.target.value)} />
-        </label>
-
-        <label className="f">
-          <span>Temperature</span>
-          <input
-            type="number"
-            step="0.1"
-            value={p.temperature}
-            onChange={(e) => p.setTemperature(Number(e.target.value))}
-          />
-        </label>
-
-        <label className="f">
-          <span>Max tokens</span>
-          <input
-            type="number"
-            min="1"
-            value={p.maxTokens}
-            onChange={(e) => p.setMaxTokens(Number(e.target.value))}
-          />
-        </label>
-
-        <div className="toggle">
-          <span>Stream</span>
-          <input
-            type="checkbox"
-            checked={p.stream}
-            onChange={(e) => p.setStream(e.target.checked)}
-          />
+        <div className="editor-actions">
+          <span className="editor-chip">Tier-A exact</span>
+          <span className="editor-chip">store + verify</span>
+          <div className="fire">
+            <button className="btn sec" disabled={p.loading} onClick={p.fireOnce}>
+              Fire once
+            </button>
+            <button className="btn pri" disabled={p.loading} onClick={p.fireTwice}>
+              Fire twice
+            </button>
+          </div>
         </div>
       </div>
-
-      <div className="fire">
-        <button className="btn sec" disabled={p.loading} onClick={p.fireOnce}>
-          Fire once
-        </button>
-        <button className="btn pri" disabled={p.loading} onClick={p.fireTwice}>
-          Fire twice
-        </button>
-      </div>
-
-      <p className="hint">
-        Deterministic defaults are deliberate. Non-zero temperature bypasses cache.
-      </p>
     </section>
   );
 }
 
 function ProofPanel({ first, second }: { first: FireResult | null; second: FireResult | null }) {
   return (
-    <section className="card">
+    <section className="card proof-card">
       <div className="chead">
         <div>
           <div className="eyebrow">Proof panel</div>
@@ -1085,7 +1173,7 @@ function LadderView({ active }: { active: string }) {
   );
 }
 
-function Telemetry({ stats, trace, mode }: { stats: StatsShape | null; trace: TracePoint[]; mode: Mode }) {
+function Telemetry({ stats, trace }: { stats: StatsShape | null; trace: TracePoint[] }) {
   const saved = useCountUp(statsSaved(stats));
 
   const counters = useMemo(
@@ -1105,10 +1193,10 @@ function Telemetry({ stats, trace, mode }: { stats: StatsShape | null; trace: Tr
     <section className="card">
       <div className="chead">
         <div>
-          <div className="eyebrow">Live telemetry</div>
+          <div className="eyebrow">Telemetry</div>
           <h2>Cache economics</h2>
         </div>
-        <span className="status">{mode === "live" ? "polling /stats" : "simulated · 2.5s"}</span>
+        <span className="status">refresh · 2.5s</span>
       </div>
 
       <div className="savings">

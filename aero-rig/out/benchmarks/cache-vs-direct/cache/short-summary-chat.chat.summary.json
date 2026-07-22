@@ -9,11 +9,11 @@
   "failed_samples": 0,
   "success_rate": 1,
   "latency_ms": {
-    "min_ms": 4.264,
-    "p50_ms": 4.264,
-    "p95_ms": 1126.79,
-    "max_ms": 1126.79,
-    "avg_ms": 565.527
+    "min_ms": 0.179,
+    "p50_ms": 0.179,
+    "p95_ms": 0.56,
+    "max_ms": 0.56,
+    "avg_ms": 0.37
   },
   "prompt_tokens": {
     "min": 51,
@@ -41,25 +41,17 @@
   "cache_results": [
     {
       "value": "hit",
-      "count": 1
-    },
-    {
-      "value": "miss",
-      "count": 1
+      "count": 2
     }
   ],
   "tiers": [
     {
       "value": "cache-l1",
-      "count": 1
-    },
-    {
-      "value": "dev",
-      "count": 1
+      "count": 2
     }
   ],
-  "verified_samples": 1,
-  "verified_hit_samples": 1,
+  "verified_samples": 2,
+  "verified_hit_samples": 2,
   "status_codes": [
     {
       "status_code": 200,

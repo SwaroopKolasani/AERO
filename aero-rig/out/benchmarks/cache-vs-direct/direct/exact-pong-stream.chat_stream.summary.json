@@ -9,18 +9,18 @@
   "failed_samples": 0,
   "success_rate": 1,
   "ttft_ms": {
-    "min_ms": 101.689,
-    "p50_ms": 101.689,
-    "p95_ms": 165.703,
-    "max_ms": 165.703,
-    "avg_ms": 133.696
+    "min_ms": 94.7,
+    "p50_ms": 94.7,
+    "p95_ms": 165.835,
+    "max_ms": 165.835,
+    "avg_ms": 130.268
   },
   "duration_ms": {
-    "min_ms": 151.941,
-    "p50_ms": 151.941,
-    "p95_ms": 215.741,
-    "max_ms": 215.741,
-    "avg_ms": 183.841
+    "min_ms": 145.615,
+    "p50_ms": 145.615,
+    "p95_ms": 216.213,
+    "max_ms": 216.213,
+    "avg_ms": 180.914
   },
   "sse_events": {
     "min": 4,

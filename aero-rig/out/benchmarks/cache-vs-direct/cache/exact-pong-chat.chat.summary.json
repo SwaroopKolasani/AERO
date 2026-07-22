@@ -9,11 +9,11 @@
   "failed_samples": 0,
   "success_rate": 1,
   "latency_ms": {
-    "min_ms": 0.693,
-    "p50_ms": 0.693,
-    "p95_ms": 346.239,
-    "max_ms": 346.239,
-    "avg_ms": 173.466
+    "min_ms": 0.567,
+    "p50_ms": 0.567,
+    "p95_ms": 54.314,
+    "max_ms": 54.314,
+    "avg_ms": 27.441
   },
   "prompt_tokens": {
     "min": 29,
@@ -41,25 +41,17 @@
   "cache_results": [
     {
       "value": "hit",
-      "count": 1
-    },
-    {
-      "value": "miss",
-      "count": 1
+      "count": 2
     }
   ],
   "tiers": [
     {
       "value": "cache-l1",
-      "count": 1
-    },
-    {
-      "value": "dev",
-      "count": 1
+      "count": 2
     }
   ],
-  "verified_samples": 1,
-  "verified_hit_samples": 1,
+  "verified_samples": 2,
+  "verified_hit_samples": 2,
   "status_codes": [
     {
       "status_code": 200,

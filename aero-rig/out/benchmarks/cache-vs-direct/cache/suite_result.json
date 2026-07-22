@@ -2,9 +2,9 @@
   "schema_version": "aerorig.suite_result.v1",
   "suite_name": "cache-vs-direct-cache",
   "output_dir": "out/benchmarks/cache-vs-direct/cache",
-  "started_at": "2026-07-14T04:39:10.294223Z",
-  "duration_ms": 3934.008,
-  "passed": true,
+  "started_at": "2026-07-14T04:42:48.15642Z",
+  "duration_ms": 71.58,
+  "passed": false,
   "chat_artifacts": [
     {
       "name": "exact-pong-chat raw",

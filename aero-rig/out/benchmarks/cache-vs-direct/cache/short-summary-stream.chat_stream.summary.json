@@ -9,18 +9,18 @@
   "failed_samples": 0,
   "success_rate": 1,
   "ttft_ms": {
-    "min_ms": 119.653,
-    "p50_ms": 119.653,
-    "p95_ms": 167.151,
-    "max_ms": 167.151,
-    "avg_ms": 143.402
+    "min_ms": 4.344,
+    "p50_ms": 4.344,
+    "p95_ms": 5.701,
+    "max_ms": 5.701,
+    "avg_ms": 5.023
   },
   "duration_ms": {
-    "min_ms": 1089.621,
-    "p50_ms": 1089.621,
-    "p95_ms": 1130.887,
-    "max_ms": 1130.887,
-    "avg_ms": 1110.254
+    "min_ms": 4.423,
+    "p50_ms": 4.423,
+    "p95_ms": 5.789,
+    "max_ms": 5.789,
+    "avg_ms": 5.106
   },
   "sse_events": {
     "min": 38,
@@ -61,18 +61,18 @@
   "answer_stable": true,
   "cache_results": [
     {
-      "value": "miss",
+      "value": "hit",
       "count": 2
     }
   ],
   "tiers": [
     {
-      "value": "dev",
+      "value": "cache-l1",
       "count": 2
     }
   ],
-  "verified_samples": 0,
-  "verified_hit_samples": 0,
+  "verified_samples": 2,
+  "verified_hit_samples": 2,
   "status_codes": [
     {
       "status_code": 200,

@@ -2,8 +2,8 @@
   "schema_version": "aerorig.suite_result.v1",
   "suite_name": "cache-vs-direct-direct",
   "output_dir": "out/benchmarks/cache-vs-direct/direct",
-  "started_at": "2026-07-14T04:38:59.296772Z",
-  "duration_ms": 10945.908,
+  "started_at": "2026-07-14T04:42:40.540436Z",
+  "duration_ms": 7587.307,
   "passed": true,
   "chat_artifacts": [
     {

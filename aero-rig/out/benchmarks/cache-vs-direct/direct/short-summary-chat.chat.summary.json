@@ -9,11 +9,11 @@
   "failed_samples": 0,
   "success_rate": 1,
   "latency_ms": {
-    "min_ms": 1074.816,
-    "p50_ms": 1074.816,
-    "p95_ms": 1157.787,
-    "max_ms": 1157.787,
-    "avg_ms": 1116.302
+    "min_ms": 1006.83,
+    "p50_ms": 1006.83,
+    "p95_ms": 1245.408,
+    "max_ms": 1245.408,
+    "avg_ms": 1126.119
   },
   "prompt_tokens": {
     "min": 51,

@@ -136,9 +136,9 @@ The repository is organized as a set of focused components. Detailed APIs, setup
 The current core has been built, integrated, and exercised on real hardware:
 
 * AeroCache, AeroBench, AeroCore, their miss-path integration, and AeroRig are complete enough to remain frozen unless defects are found.
-* AeroCache runs continuously on a repurposed Ubuntu Lenovo server.
-* Valkey provides persistent local cache storage on the Lenovo host.
-* A MacBook Air M2 running Ollama currently provides the local inference backend.
+* AeroCache runs continuously on a repurposed Ubuntu Trojan server.
+* Valkey provides persistent local cache storage on the Trojan host.
+* M2 running Ollama currently provides the local inference backend.
 * Verified first-miss and second-hit behavior has been demonstrated, including cache persistence across an AeroCache restart.
 * The live lab is exposed privately through Cloudflare Tunnel and Cloudflare Access without router port forwarding.
 * The public website remains separate from the protected live inference environment.
